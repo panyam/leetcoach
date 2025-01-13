@@ -1,0 +1,23 @@
+.paginator {
+}
+
+.pageStatusSpan {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.prevPageButton.enabled {
+  display: inline;
+}
+
+.prevPageButton.disabled {
+  display: none;
+}
+
+.nextPageButton.enabled {
+  display: inline;
+}
+
+.nextPageButton.disabled {
+  display: none;
+}

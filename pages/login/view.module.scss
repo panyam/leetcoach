@@ -1,0 +1,13 @@
+@import "../../styles/default_vars.scss";
+$header_height: 100px;
+@import "../../components/Header/view.module.scss";
+@import "../../components/styles/menu.module.scss";
+@import "../../components/styles/search.module.scss";
+
+.authProviderDiv {
+  padding-top: 20px;
+}
+
+.authProviderButton {
+  border: solid 1px;
+}

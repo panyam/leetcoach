@@ -41,12 +41,12 @@ class CaseStudyPage {
     const drawings = document.querySelectorAll(".systemDrawing")
     for (const drawing of drawings) {
       const rootElem = drawing as HTMLDivElement
-      const tbElem = rootElem.querySelector("toolbar") as HTMLDivElement
+      const tbElem = rootElem.querySelector(".toolbar") as HTMLDivElement
       const sd = new SystemDrawing(this.caseStudyId, rootElem, tbElem)
     }
     // Get references to HTML elements
 
-    Split(["#outlinePanel", "#contentPanel", "#notesPanel"], { sizes: [15, 70], direction: "horizontal", });
+    Split(["#outlinePanel", "#contentPanel", "#notesPanel"], { sizes: [15, 70, 15], direction: "horizontal", });
 
     // For testing only
     const contentPanel = document.getElementById('contentPanel') as HTMLDivElement

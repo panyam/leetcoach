@@ -303,11 +303,146 @@ export class ExcalidrawWrapper {
     return this.container;
   }
 
+  private async initialize(initialData: string | null = null): Promise<void> {
+      const ExcalidrawLib = await import("@excalidraw/excalidraw");
+      const React = await import("react");
+      const ReactDOM = await import("react-dom");
+      const ReactClient = await import("react-dom/client");
+      const App = () => {
+        const [excalidrawAPI, setExcalidrawAPI] = React.useState<ExcalidrawImperativeAPI>();
+        const excalidrawWrapperRef = React.useRef<HTMLDivElement>();
+        const [dimensions, setDimensions] = React.useState<any>({
+          width: 0,
+          height: 0,
+        });
+
+        const [viewModeEnabled, setViewModeEnabled] = React.useState(false);
+        const [zenModeEnabled, setZenModeEnabled] = React.useState(false);
+        const [gridModeEnabled, setGridModeEnabled] = React.useState(false);
+
+        React.useEffect(() => {
+          function setDims() {
+            if (!excalidrawWrapperRef.current) return
+            const width = excalidrawWrapperRef.current.getBoundingClientRect().width || 100;
+            const height = excalidrawWrapperRef.current.getBoundingClientRect().height || 100;
+            setDimensions({ width: width, height: height });
+          }
+          setDims()
+          window.addEventListener("resize", setDims);
+          return () => window.removeEventListener("resize", setDims);
+        }, [excalidrawWrapperRef]);
+
+        const updateScene = () => {
+          const sceneData = {
+            elements: [
+              {
+                type: "rectangle",
+                version: 141,
+                versionNonce: 361174001,
+                isDeleted: false,
+                id: "oDVXy8D6rom3H1-LLH2-f",
+                fillStyle: "hachure",
+                strokeWidth: 1,
+                strokeStyle: "solid",
+                roughness: 1,
+                opacity: 100,
+                angle: 0,
+                x: 100.50390625,
+                y: 93.67578125,
+                strokeColor: "#c92a2a",
+                backgroundColor: "transparent",
+                width: 186.47265625,
+                height: 141.9765625,
+                seed: 1968410350,
+                groupIds: [],
+              },
+            ],
+            appState: {
+              viewBackgroundColor: "#edf2ff",
+            },
+          } as any;
+
+          if (excalidrawAPI) excalidrawAPI.updateScene(sceneData);
+        };
+
+        return React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(
+            "div",
+            { className: "button-wrapper" },
+            React.createElement(
+              "button",
+              {
+                className: "update-scene",
+                onClick: updateScene,
+              },
+              "Update Scene"
+            ),
+            React.createElement(
+              "button",
+              {
+                className: "reset-scene",
+                onClick: () => { if (excalidrawAPI) excalidrawAPI.resetScene() } ,
+              },
+              "Reset Scene"
+            ),
+            React.createElement(
+              "label",
+              null,
+              React.createElement("input", {
+                type: "checkbox",
+                checked: viewModeEnabled,
+                onChange: () => setViewModeEnabled(!viewModeEnabled),
+              }),
+              "View mode"
+            ),
+            React.createElement(
+              "label",
+              null,
+              React.createElement("input", {
+                type: "checkbox",
+                checked: zenModeEnabled,
+                onChange: () => setZenModeEnabled(!zenModeEnabled),
+              }),
+              "Zen mode"
+            ),
+            React.createElement(
+              "label",
+              null,
+              React.createElement("input", {
+                type: "checkbox",
+                checked: gridModeEnabled,
+                onChange: () => setGridModeEnabled(!gridModeEnabled),
+              }),
+              "Grid mode"
+            )
+          ),
+          React.createElement(
+            "div",
+            {
+              className: "excalidraw-wrapper",
+              ref: excalidrawWrapperRef,
+            },
+            React.createElement(ExcalidrawLib.Excalidraw, {
+              excalidrawAPI: (api: any) => setExcalidrawAPI(api),
+              zenModeEnabled,
+              gridModeEnabled,
+              viewModeEnabled,
+              langCode: "en-US",
+            })
+          )
+        );
+      };
+      const root = ReactClient.createRoot(this.container);
+      root.render(React.createElement(App));
+  }
+
   /**
    * Initialize the Excalidraw instance
    * @param initialData Optional JSON string containing initial drawing data
    */
-  private async initialize(initialData: string | null = null): Promise<void> {
+  private async initialize2(initialData: string | null = null): Promise<void> {
     try {
       // Create a root element for Excalidraw
       const excalidrawRoot = document.createElement("div");

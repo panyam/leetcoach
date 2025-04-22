@@ -1,6 +1,12 @@
 # Byte-compiled / optimized / DLL files
+tmp
+locallinks
+output
 __pycache__/
 public
+web/static/js/gen
+.env
+.env.dev
 coverage
 datadir
 *.py[cod]

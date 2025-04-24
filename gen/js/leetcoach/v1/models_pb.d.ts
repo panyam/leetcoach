@@ -328,56 +328,11 @@ export declare type Section = Message<"leetcoach.v1.Section"> & {
 
   /**
    * *
-   * Section content type
-   *
-   * e.g., "application/json", "text/html" etc
-   *
-   * @generated from field: string content_type = 7;
-   */
-  contentType: string;
-
-  /**
-   * *
-   * Format of the section. 
-   *
-   * e.g., "chartjs/json", "plotly/json"
-   *
-   * @generated from field: string format = 8;
-   */
-  format: string;
-
-  /**
-   * *
    * Order of the section in the list of sections.  This is a readonly field.
    *
-   * @generated from field: uint32 order = 9;
+   * @generated from field: uint32 order = 7;
    */
   order: number;
-
-  /**
-   * Note section content may not always be served here.
-   *
-   * @generated from oneof leetcoach.v1.Section.content
-   */
-  content: {
-    /**
-     * @generated from field: leetcoach.v1.TextSectionContent text_content = 10;
-     */
-    value: TextSectionContent;
-    case: "textContent";
-  } | {
-    /**
-     * @generated from field: leetcoach.v1.DrawingSectionContent drawing_content = 11;
-     */
-    value: DrawingSectionContent;
-    case: "drawingContent";
-  } | {
-    /**
-     * @generated from field: leetcoach.v1.PlotSectionContent plot_content = 12;
-     */
-    value: PlotSectionContent;
-    case: "plotContent";
-  } | { case: undefined; value?: undefined };
 };
 
 /**
@@ -387,56 +342,78 @@ export declare type Section = Message<"leetcoach.v1.Section"> & {
 export declare const SectionSchema: GenMessage<Section>;
 
 /**
- * @generated from message leetcoach.v1.TextSectionContent
+ * *
+ * Each section can have multiple pieces of content identified by a "name"
+ * The name 
+ *
+ * @generated from message leetcoach.v1.Content
  */
-export declare type TextSectionContent = Message<"leetcoach.v1.TextSectionContent"> & {
+export declare type Content = Message<"leetcoach.v1.Content"> & {
   /**
-   * @generated from field: string html_content = 1;
+   * @generated from field: google.protobuf.Timestamp created_at = 1;
    */
-  htmlContent: string;
-};
+  createdAt?: Timestamp;
 
-/**
- * Describes the message leetcoach.v1.TextSectionContent.
- * Use `create(TextSectionContentSchema)` to create a new message.
- */
-export declare const TextSectionContentSchema: GenMessage<TextSectionContent>;
-
-/**
- * @generated from message leetcoach.v1.PlotSectionContent
- */
-export declare type PlotSectionContent = Message<"leetcoach.v1.PlotSectionContent"> & {
   /**
-   * The plot configuration or data as bytes (likely JSON string bytes)
+   * @generated from field: google.protobuf.Timestamp updated_at = 2;
+   */
+  updatedAt?: Timestamp;
+
+  /**
+   * Unique name of the content piece within the section
    *
-   * @generated from field: bytes data = 2;
+   * @generated from field: string name = 3;
    */
-  data: Uint8Array;
-};
+  name: string;
 
-/**
- * Describes the message leetcoach.v1.PlotSectionContent.
- * Use `create(PlotSectionContentSchema)` to create a new message.
- */
-export declare const PlotSectionContentSchema: GenMessage<PlotSectionContent>;
-
-/**
- * @generated from message leetcoach.v1.DrawingSectionContent
- */
-export declare type DrawingSectionContent = Message<"leetcoach.v1.DrawingSectionContent"> & {
   /**
-   * The actual drawing data (can be JSON string bytes, raw SVG bytes, etc.)
+   * *
+   * Type of content being attached to this section.
+   * This would determine what kind of media we are working with
+   * eg e
    *
-   * @generated from field: bytes data = 2;
+   * e.g., "application/json", "text/html" etc
+   *
+   * @generated from field: string type = 5;
    */
-  data: Uint8Array;
+  type: string;
+
+  /**
+   * *
+   * Format of the section. 
+   *
+   * e.g., "chartjs/json", "plotly/json"
+   *
+   * @generated from field: string format = 6;
+   */
+  format: string;
 };
 
 /**
- * Describes the message leetcoach.v1.DrawingSectionContent.
- * Use `create(DrawingSectionContentSchema)` to create a new message.
+ * Describes the message leetcoach.v1.Content.
+ * Use `create(ContentSchema)` to create a new message.
  */
-export declare const DrawingSectionContentSchema: GenMessage<DrawingSectionContent>;
+export declare const ContentSchema: GenMessage<Content>;
+
+/**
+ * @generated from enum leetcoach.v1.ContentState
+ */
+export enum ContentState {
+  /**
+   * @generated from enum value: CONTENT_STATE_CREATED = 0;
+   */
+  CREATED = 0,
+
+  /**
+   * @generated from enum value: CONTENT_STATE_POPULATED = 1;
+   */
+  POPULATED = 1,
+}
+
+/**
+ * Describes the enum leetcoach.v1.ContentState.
+ */
+export declare const ContentStateSchema: GenEnum<ContentState>;
 
 /**
  * @generated from enum leetcoach.v1.SectionType

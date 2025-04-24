@@ -62,6 +62,7 @@ type Design struct {
 	ContentMetadata StringMapField `datastore:"contentMetadata,noindex" json:"contentMetadata,noindex"`
 }
 
+// Section now only contains metadata. Content is managed separately.
 type Section struct {
 	BaseModel
 	Id       string `datastore:"id" json:"id"`
@@ -75,11 +76,18 @@ type Section struct {
 
 	// Title, format, content type
 	Title       string `json:"title"`
-	ContentType string `json:"contentType"`
-	Format      string `json:"format"`
+	ContentType string `json:"contentType,omitempty"` // Optional metadata
+	Format      string `json:"format,omitempty"`      // Optional metadata
+}
 
-	// Content stored based on type (e.g., string for HTML, stringified JSON for others)
-	Content any `json:"content"`
+// NEW: Struct to represent Content metadata (can be stored in main.json or later elsewhere)
+// For now, ContentService might not store this persistently, relying on request/file name.
+type ContentMetadata struct {
+	BaseModel
+	Name        string `json:"name"`        // e.g., "main", "preview.svg"
+	ContentType string `json:"contentType"` // e.g., "text/html", "image/svg+xml"
+	Format      string `json:"format"`      // e.g., "excalidraw/json"
+	Size        int64  `json:"size"`        // Size in bytes
 }
 
 /**

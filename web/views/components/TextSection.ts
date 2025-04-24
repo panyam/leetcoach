@@ -15,6 +15,7 @@ export class TextSection extends BaseSection {
     private editorInstance: Editor | null = null;
 
     constructor(data: SectionData, element: HTMLElement, callbacks: SectionCallbacks = {}) {
+        const { onContentChange, ...otherCallbacks } = callbacks;
         super(data, element, callbacks);
     }
 
@@ -23,15 +24,25 @@ export class TextSection extends BaseSection {
         return this.mode === 'edit';
     }
 
+    /** Decodes raw data (base64 string) and returns interpreted content (HTML string) */
+    private decodeContent(rawContent: any | null): string {
+        if (typeof rawContent === 'string') {
+            try {
+                // Decode base64 -> UTF8 bytes -> string
+                return decodeURIComponent(escape(atob(rawContent)));
+            } catch (e) {
+                console.error(`TextSection ${this.data.id}: Failed to decode base64 content.`, e);
+                return '<p>Error: Could not load content.</p>';
+            }
+        }
+        return ''; // Default to empty string if content is null or not a string
+    }
+
     protected populateViewContent(): void {
         const viewContent = this.contentContainer?.querySelector('.section-view-content');
         if (viewContent) {
-            const initialContent = (typeof this.data.content === 'string' && this.data.content.length > 0)
-                ? this.data.content
-                : '<p class="text-gray-400 dark:text-gray-500 italic">Click to add content...</p>';
-            viewContent.innerHTML = initialContent;
-        } else {
-            console.warn(`View content area not found for text section ${this.data.id}`);
+            const htmlContent = this.decodeContent(this.data.content);
+            viewContent.innerHTML = htmlContent || '<p class="text-gray-400 dark:text-gray-500 italic">Click to add content...</p>';
         }
     }
 
@@ -39,7 +50,7 @@ export class TextSection extends BaseSection {
     protected override populateEditContent(): void {
         const editorTarget = this.contentContainer?.querySelector('.text-editor-target');
         if (editorTarget instanceof HTMLElement) {
-            const initialContent = (typeof this.data.content === 'string') ? this.data.content : '';
+            const initialContent = this.decodeContent(this.data.content); // Decode for editor
             const isDarkMode = document.documentElement.classList.contains('dark');
             const tinyMCEPublicPath = '/static/js/gen/';
 
@@ -228,7 +239,7 @@ export class TextSection extends BaseSection {
     }
 
     // Ensure switchToViewMode also reliably cleans up
-    public override switchToViewMode(saveChanges: boolean): void {
+    public override async switchToViewMode(saveChanges: boolean): Promise<void> {
         let contentToSave: TextContent | undefined = undefined;
         const wasInEditMode = this.mode === 'edit'; // Remember if we were editing
 
@@ -319,4 +330,52 @@ export class TextSection extends BaseSection {
          // If specific resizing logic were needed (e.g., for a different editor), it would go here.
          // Example: this.editorInstance?.execCommand('mceAutoResize'); // Might force a recalc if needed
      }
+
+    /** Gets HTML string directly from TinyMCE editor */
+    protected getInterpretedContentForSaving(): TextContent {
+        if (this.editorInstance && this.editorInstance.initialized) {
+            try {
+                return this.editorInstance.getContent() || '';
+            } catch (error) {
+                console.error(`Error getting content from TinyMCE for saving ${this.data.id}:`, error);
+                return this.decodeContent(this.data.content); // Fallback to last saved/decoded
+            }
+        }
+        console.warn(`TinyMCE instance not available for saving ${this.data.id}.`);
+        return this.decodeContent(this.data.content); // Fallback
+    }
+
+    /** Encodes HTML string to base64 */
+    protected encodeContentForSaving(interpretedContent: TextContent): { contentBytes: string; contentType: string; format: string; } {
+        const contentString = typeof interpretedContent === 'string' ? interpretedContent : '';
+        const contentBytes = btoa(unescape(encodeURIComponent(contentString))); // String -> UTF8 -> Base64
+        return {
+            contentBytes: contentBytes,
+            contentType: 'text/html',
+            format: 'html'
+        };
+    }
+
+    /** Destroys the TinyMCE editor instance */
+    protected cleanupEditMode(): void {
+        if (this.editorInstance) {
+            console.log(`Cleanup: Removing TinyMCE instance for ${this.data.id}`);
+            try {
+                tinymce.remove(this.editorInstance);
+            } catch (error) {
+                console.error(`Error removing TinyMCE instance during cleanup for ${this.data.id}:`, error);
+            } finally {
+                this.editorInstance = null;
+            }
+        }
+    }
+
+    /** Returns the content formatted for the DocumentSection type (string) */
+    protected getDocumentFormattedContent(): TextContent {
+        if (this.mode === 'edit') {
+            return this.getInterpretedContentForSaving(); // Get current editor state
+        } else {
+            return this.decodeContent(this.data.content); // Decode stored raw content
+        }
+    }
 }

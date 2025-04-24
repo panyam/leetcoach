@@ -1,7 +1,11 @@
 // components/BaseSection.ts
 
 import { Modal } from './Modal';
-import { SectionData, SectionType, DocumentSection, TextContent, DrawingContent, PlotContent, SectionCallbacks } from './types';
+import { SectionData, SectionType, DocumentSection, SectionCallbacks } from './types';
+import { ContentApi } from './Api';
+import { V1Content, SetContentRequest } from './apiclient';
+import { ToastManager } from './ToastManager'; // For showing save errors/success
+
 
 // --- Placeholders for icons/titles - can be moved/refined ---
 const TEXT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>`;
@@ -42,11 +46,15 @@ export abstract class BaseSection {
     protected fullscreenButton: HTMLElement | null; // Moved from subclasses
     protected exitFullscreenButton: HTMLElement | null = null; // Found after view load
 
+    protected toastManager: ToastManager; // Add toast manager
+
+
     constructor(data: SectionData, element: HTMLElement, callbacks: SectionCallbacks = {}) {
         this.data = data;
         this.element = element;
         this.callbacks = callbacks;
         this.modal = Modal.getInstance();
+        this.toastManager = ToastManager.getInstance();
 
         // Find common structural elements
         this.sectionHeaderElement = this.element.querySelector('.section-header');
@@ -274,53 +282,52 @@ export abstract class BaseSection {
         }, 0);
     }
 
-    /**
-     * Switches the section to View mode.
-     * Optionally saves changes from Edit mode before switching.
-     * Loads the appropriate view template from the registry.
-     */
-    public switchToViewMode(saveChanges: boolean): void {
+    /** Switches to View mode, potentially saving content first */
+    public async switchToViewMode(saveChanges: boolean): Promise<void> {
+        let savedSuccessfully = true;
         if (this.mode === 'edit' && saveChanges) {
-            console.log(`switchToViewMode: Attempting to get content from edit mode for section ${this.data.id}`);
-            const newContent = this.getContentFromEditMode();
-            // --- Modification: Always call the callback on save intent ---
-            // Let the SectionManager or API decide if an update is truly needed.
-            // The comparison check can be done there if desired, but usually better to just send the update.
-            // if (JSON.stringify(newContent) !== JSON.stringify(this.data.content)) {
-                 this.data.content = newContent; // Update local data regardless
-                 this.callbacks.onContentChange?.(this.data.id, this.data.content); // Always call callback
-                 console.log(`Section ${this.data.id} content saved.`);
-            // } else {
-            //      console.log(`Section ${this.data.id} content unchanged, but callback will still be called.`);
-            //      this.callbacks.onContentChange?.(this.data.id, this.data.content); // Call even if unchanged? Maybe not. Let's stick to calling ONLY if changed or always sending to API. Let's ALWAYS send.
-            // }
+            console.log(`switchToViewMode: Attempting to save content for section ${this.data.id}`);
+            try {
+                const interpretedContent = this.getInterpretedContentForSaving(); // Use specific getter for saving state
+                const { contentBytes, contentType, format } = this.encodeContentForSaving(interpretedContent);
+                await this.saveContentToApi('main', contentBytes, contentType, format);
+                this.data.content = contentBytes; // Update local raw content state
+            } catch (error) {
+                console.error(`Error during save process for section ${this.data.id}:`, error);
+                this.toastManager.showToast("Save Error", `Failed to save section "${this.data.title}". Changes may be lost.`, "error");
+                savedSuccessfully = false;
+            }
         }
 
-        this.mode = 'view';
-        console.log(`Switching ${this.data.id} to view mode.`);
-        if (this.loadTemplate('view')) {
-            this.populateViewContent();
-            this.bindViewModeEvents();
+        if (savedSuccessfully) {
+            this.cleanupEditMode(); // Cleanup before loading view
+            this.mode = 'view';
+            console.log(`Switching ${this.data.id} to view mode.`);
+            if (this.loadTemplate('view')) {
+                // populateViewContent now responsible for decoding/interpreting this.data.content
+                this.populateViewContent();
+                this.bindViewModeEvents();
+            } else {
+                console.error("Failed to load view template for section", this.data.id);
+            }
         } else {
-            console.error("Failed to load view template for section", this.data.id);
+            console.log(`Staying in edit mode for section ${this.data.id} due to save failure.`);
         }
     }
 
-    /**
-     * Switches the section to Edit mode.
-     * Loads the appropriate edit template from the registry.
-     */
+    /** Switches to Edit mode */
     public switchToEditMode(): void {
-        if (this.mode === 'edit') return; // Already in edit mode
-
+        if (this.mode === 'edit') return;
+        this.cleanupEditMode(); // Cleanup before entering edit mode
         this.mode = 'edit';
         console.log(`Switching ${this.data.id} to edit mode.`);
         if (this.loadTemplate('edit')) {
+            // populateEditContent now responsible for decoding/interpreting this.data.content
             this.populateEditContent();
             this.bindEditModeEvents();
         } else {
              console.error("Failed to load edit template for section", this.data.id);
-             this.mode = 'view'; // Revert mode if template fails
+             this.mode = 'view'; // Revert mode
         }
     }
 
@@ -364,28 +371,64 @@ export abstract class BaseSection {
     }
 
     // --- Abstract methods to be implemented by derived classes ---
-
-    /** Populates the loaded View mode template with the section's current data. */
+    /** Populates the View mode template using interpreted content derived from this.data.content. */
     protected abstract populateViewContent(): void;
 
-    /** Populates the loaded Edit mode template with the section's current data and initializes editors. */
+    /** Populates the Edit mode template using interpreted content derived from this.data.content and initializes editors. */
     protected abstract populateEditContent(): void;
 
-    /** Binds event listeners specific to the elements within the View mode template. */
+    /** Binds event listeners specific to View mode elements. */
     protected abstract bindViewModeEvents(): void;
 
-    /** Binds event listeners specific to the elements within the Edit mode template (e.g., save/cancel buttons). */
+    /** Binds event listeners specific to Edit mode elements. */
     protected abstract bindEditModeEvents(): void;
 
-    /** Handles resizing the section's specific content (e.g., canvas, plot) when entering/exiting fullscreen or on window resize. */
+    /** Handles resizing content elements (e.g., canvas, plot). */
     protected abstract resizeContentForFullscreen(isEntering: boolean): void;
 
+    /** Retrieves the current *interpreted* content state directly from the Edit mode UI (editor instance, form fields, etc.). Used for saving. */
+    protected abstract getInterpretedContentForSaving(): any;
 
-    /** Retrieves the current content state from the Edit mode UI elements. */
-    protected abstract getContentFromEditMode(): SectionData['content'];
+    /** Encodes the *interpreted* content (from editor/form) into raw bytes (base64 string) and provides necessary metadata for saving via ContentService. */
+    protected abstract encodeContentForSaving(interpretedContent: any): { contentBytes: string, contentType: string, format: string };
 
+    /** Cleans up resources specific to the edit mode (e.g., destroy editors, unmount components). */
+    protected abstract cleanupEditMode(): void;
+
+    /** Returns the section's content formatted correctly for the DocumentSection union type (e.g., string for text, {format:..., data:...} for drawing/plot). Reads from editor if in edit mode, otherwise decodes/interprets raw data. */
+    protected abstract getDocumentFormattedContent(): any; // Return type matches union: TextContent | DrawingContent | PlotContent
 
     // --- Public API ---
+    /** Helper method to call the ContentService API */
+    protected async saveContentToApi(name: string, contentBytes: string, contentType: string, format: string): Promise<void> {
+        if (!this.data.designId || !this.data.id) {
+            throw new Error("Missing designId or sectionId for saving content");
+        }
+        console.log(`Calling ContentServiceSetContent for ${this.data.designId}/${this.data.id}/${name}`);
+
+        try {
+            await ContentApi.contentServiceSetContent({
+                designId: this.data.designId,
+                sectionId: this.data.id,
+                contentName: name, // Use the name parameter in the URL path
+                body: {
+                    content: { // Metadata about the content being set
+                        type: contentType,
+                        format: format,
+                    },
+                    contentBytes: contentBytes, // Base64 encoded string
+                    updateMask: 'content_bytes,content.type,content.format' // Update bytes and metadata
+                }
+            });
+            console.log(`API Success: Content saved for section ${this.data.id}, name: ${name}`);
+             this.toastManager.showToast("Content Saved", `Content for section "${this.data.title}" saved.`, "success", 1500);
+
+        } catch (error) {
+             console.error(`API Error saving content for section ${this.data.id}, name: ${name}:`, error);
+             // Re-throw the error so switchToViewMode can handle UI feedback
+             throw error;
+        }
+    }
 
     /** Updates the displayed section number */
     public updateNumber(number: number): void {
@@ -412,35 +455,68 @@ export abstract class BaseSection {
         return this.data.order;
     }
 
-    /**
-     * Gets the section data formatted for the document model.
-     * Ensures content reflects the latest saved state.
-     */
+    /** Gets the section data formatted for the document model (e.g., for export) */
     public getDocumentData(): DocumentSection {
-        // Important: Assumes this.data.content is kept up-to-date by switchToViewMode(true)
-        // If called while in edit mode *before* saving, it returns the *last saved* content.
-         const baseData = {
+         // Delegate getting the correctly formatted content to the subclass
+        const formattedContent = this.getDocumentFormattedContent();
+
+        const baseData = {
             id: this.data.id,
             title: this.data.title,
             order: this.data.order,
+            type: this.data.type, // Type is known by the base class
         };
 
-        // Return type assertion based on the section's type
-        switch (this.data.type) {
-            case 'text':
-                return { ...baseData, type: 'text', content: this.data.content as TextContent };
-            case 'drawing':
-                return { ...baseData, type: 'drawing', content: this.data.content as DrawingContent };
-            case 'plot':
-                return { ...baseData, type: 'plot', content: this.data.content as PlotContent };
-            default:
-                // Should not happen if types are handled correctly
-                console.error(`Unknown section type in getDocumentData: ${this.data.type}`);
-                // Fallback or throw error - returning as text for now
-                return { ...baseData, type: 'text', content: String(this.data.content) };
+        // Construct the final object. We trust the subclass returned the correct content structure.
+        return { ...baseData, content: formattedContent } as DocumentSection; // Type assertion
+    }
+
+    /** Helper to decode raw content (likely base64) for display/interpretation */
+    protected decodeRawContentForDisplay(rawContent: any | null): any {
+        if (rawContent === null || typeof rawContent !== 'string') {
+            // Handle null or unexpected types - return suitable default based on section type
+             switch (this.data.type) {
+                case 'text': return '';
+                case 'drawing': return { format: 'excalidraw/json', data: {elements: [], appState: {}} };
+                case 'plot': return { format: 'placeholder_plot/json', data: {} };
+                default: return null;
+             }
+        }
+
+        try {
+            // Assume rawContent is base64 string from API
+            const decodedString = decodeURIComponent(escape(atob(rawContent)));
+
+            // Try to parse if it's likely JSON (drawing/plot)
+            if (this.data.type === 'drawing' || this.data.type === 'plot') {
+                try {
+                    const jsonData = JSON.parse(decodedString);
+                    // Return structure expected by Drawing/PlotContent types
+                    return {
+                        format: this.data.type === 'drawing' ? 'excalidraw/json' : 'placeholder_plot/json', // TODO: Store format properly
+                        data: jsonData
+                    };
+                } catch (parseError) {
+                     console.warn(`Failed to parse decoded content as JSON for section ${this.data.id}, returning raw string.`, parseError);
+                     // Fallback for drawing/plot if JSON parse fails (shouldn't happen if saved correctly)
+                     return { format: 'error', data: { raw: decodedString } };
+                }
+            } else {
+                // For text sections, return the decoded string directly
+                return decodedString;
+            }
+        } catch (decodeError) {
+            console.error(`Failed to decode base64 content for section ${this.data.id}:`, decodeError, "Raw Content:", rawContent);
+            // Return suitable default based on type on decode error
+             switch (this.data.type) {
+                case 'text': return '<p>Error decoding content.</p>'; // Show error in text section
+                case 'drawing': return { format: 'error', data: { message: 'Error decoding content'} };
+                case 'plot': return { format: 'error', data: { message: 'Error decoding content'} };
+                default: return null;
+             }
         }
     }
- 
+
      // --- Fullscreen State and Methods ---
      protected isFullscreen: boolean = false;
  

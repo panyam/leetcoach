@@ -1,4 +1,4 @@
-// components/types.ts
+// ./web/views/components/types.ts
 
 export type SectionType = 'text' | 'drawing' | 'plot';
 
@@ -38,27 +38,36 @@ export interface BaseDocumentSection {
 
 export interface TextDocumentSection extends BaseDocumentSection {
   type: 'text';
-  content: TextContent;
+  content: TextContent; // This represents the *interpreted* content
 }
 
 export interface DrawingDocumentSection extends BaseDocumentSection {
   type: 'drawing';
-  content: DrawingContent; // Placeholder content for now
+  content: DrawingContent; // This represents the *interpreted* content
 }
 
 export interface PlotDocumentSection extends BaseDocumentSection {
   type: 'plot';
-  content: PlotContent; // Placeholder content for now
+  content: PlotContent; // This represents the *interpreted* content
 }
 
 
 export interface SectionData {
   id: string;
-  designId: string; // <-- ADD THIS LINE
+  designId: string;
   type: SectionType;
   title: string;
-  content: TextContent | DrawingContent | PlotContent;
   order: number;
+  // Content is now loaded asynchronously via ContentService.
+  // It will initially be null, then populated with the raw data fetched
+  // (likely a base64 string for bytes, or potentially plain string for text).
+  // Subclasses (TextSection, DrawingSection, PlotSection) will be responsible
+  // for interpreting this raw content.
+  content: any | null;
+  // Optional: Add fields for content metadata if needed later
+  // contentName?: string;
+  // contentType?: string;
+  // contentFormat?: string;
 }
 
 export interface SectionCallbacks {
@@ -66,14 +75,16 @@ export interface SectionCallbacks {
   onMoveUp?: (sectionId: string) => void;
   onMoveDown?: (sectionId: string) => void;
   onTitleChange?: (sectionId: string, newTitle: string) => void;
-  // Ensure content type matches SectionData['content']
+  // onContentChange callback is likely removed or significantly changed,
+  // as saving now happens via ContentService called from BaseSection/subclasses.
   onContentChange?: (sectionId: string, newContent: SectionData['content']) => void;
-  // Callback for requesting section addition
   onAddSectionRequest?: (relativeToId: string, position: 'before' | 'after') => void;
 }
 
+// DocumentSection represents the interpreted state, useful for export/display.
 export type DocumentSection = TextDocumentSection | DrawingDocumentSection | PlotDocumentSection;
 
+// LeetCoachDocument represents the interpreted state of the whole document.
 export interface LeetCoachDocument {
   metadata: DocumentMetadata;
   title: string;

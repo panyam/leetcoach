@@ -1,0 +1,5 @@
+#!/bin/sh
+
+source ~/personal/.shhelpers
+
+files_for_llm `find . | grep -v attic | grep -v mkprompt | grep sdl `

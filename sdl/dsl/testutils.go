@@ -1,6 +1,11 @@
 package dsl
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/panyam/leetcoach/sdl/core"
+)
 
 type Disk struct {
 	Name        string
@@ -43,17 +48,57 @@ func (d *Disk) ReadProcessWrite(processingTime Expr) Expr {
 	return step2
 }
 
-func LitStr(v string) Expr { return &LiteralExpr{Kind: "STRING", Value: v} }
-func LitInt(v int) Expr    { return &LiteralExpr{Kind: "INT", Value: strconv.Itoa(v)} }
-func LitFloat(v float64) Expr {
+func litStr(v string) Expr { return &LiteralExpr{Kind: "STRING", Value: v} }
+func litInt(v int) Expr    { return &LiteralExpr{Kind: "INT", Value: strconv.Itoa(v)} }
+func litFloat(v float64) Expr {
 	return &LiteralExpr{Kind: "FLOAT", Value: strconv.FormatFloat(v, 'f', -1, 64)}
 }
-func LitBool(v bool) Expr            { return &LiteralExpr{Kind: "BOOL", Value: strconv.FormatBool(v)} }
-func Ident(n string) Expr            { return &IdentifierExpr{Name: n} }
-func Member(r Expr, m string) Expr   { return &MemberAccessExpr{Receiver: r, Member: m} }
-func Call(f Expr, args ...Expr) Expr { return &CallExpr{Function: f, Args: args} }
-func And(l, r Expr) Expr             { return &AndExpr{Left: l, Right: r} }
-func Par(l, r Expr) Expr             { return &ParallelExpr{Left: l, Right: r} }
-func InternalCall(fName string, args ...Expr) Expr {
+func litBool(v bool) Expr            { return &LiteralExpr{Kind: "BOOL", Value: strconv.FormatBool(v)} }
+func ident(n string) Expr            { return &IdentifierExpr{Name: n} }
+func member(r Expr, m string) Expr   { return &MemberAccessExpr{Receiver: r, Member: m} }
+func call(f Expr, args ...Expr) Expr { return &CallExpr{Function: f, Args: args} }
+func and(l, r Expr) Expr             { return &AndExpr{Left: l, Right: r} }
+func par(l, r Expr) Expr             { return &ParallelExpr{Left: l, Right: r} }
+func internalCall(fName string, args ...Expr) Expr {
 	return &InternalCallExpr{FuncName: fName, Args: args}
+}
+
+// Mock state creators
+func mockState(val any, latMs float64) *VarState {
+	var valOutcome any
+	switch v := val.(type) {
+	case bool:
+		valOutcome = (&core.Outcomes[bool]{}).Add(1.0, v)
+	case int64:
+		valOutcome = (&core.Outcomes[int64]{}).Add(1.0, v)
+	case float64:
+		valOutcome = (&core.Outcomes[float64]{}).Add(1.0, v)
+	case string:
+		valOutcome = (&core.Outcomes[string]{}).Add(1.0, v)
+	case core.AccessResult:
+		valOutcome = (&core.Outcomes[core.AccessResult]{}).Add(1.0, v)
+	default:
+		panic(fmt.Sprintf("mockState: unsupported value type %T", val))
+	}
+
+	latOutcome := (&core.Outcomes[core.Duration]{}).Add(1.0, core.Millis(latMs))
+
+	return &VarState{ValueOutcome: valOutcome, LatencyOutcome: latOutcome}
+}
+
+// *** Local test helper for mean duration ***
+func meanDurationLatency(o *core.Outcomes[core.Duration]) core.Duration {
+	if o == nil || o.Len() == 0 {
+		return 0
+	}
+	totalWeight := 0.0
+	weightedSum := 0.0
+	for _, b := range o.Buckets {
+		totalWeight += b.Weight
+		weightedSum += b.Value * b.Weight
+	}
+	if totalWeight <= 1e-12 {
+		return 0
+	}
+	return weightedSum / totalWeight
 }

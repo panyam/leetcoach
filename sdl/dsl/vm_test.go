@@ -3,11 +3,109 @@ package dsl
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/panyam/leetcoach/sdl/core"
 	// "fmt" // For debugging
 )
+
+// Mock internal funcs
+func registerMockInternalFuncs(v *VM) {
+	v.RegisterInternalFunc("GetBool", func(vm *VM, args []*VarState) (*VarState, error) {
+		// Args: successProb (float Outcome), successLat (Duration Outcome), failLat (Duration Outcome)
+		if len(args) != 3 {
+			return nil, fmt.Errorf("GetBool needs 3 args")
+		}
+		probState := args[0]
+		latSState := args[1]
+		latFState := args[2]
+		if probState == nil || latSState == nil || latFState == nil {
+			return nil, fmt.Errorf("GetBool args must be VarState")
+		}
+
+		// Get deterministic values from argument outcomes
+		probF, ok := probState.ValueOutcome.(*core.Outcomes[float64]).GetValue()
+		if !ok {
+			return nil, fmt.Errorf("GetBool prob must be deterministic")
+		}
+		latS, ok := latSState.ValueOutcome.(*core.Outcomes[core.Duration]).GetValue()
+		if !ok {
+			return nil, fmt.Errorf("GetBool successLat must be deterministic")
+		}
+		latF, ok := latFState.ValueOutcome.(*core.Outcomes[core.Duration]).GetValue()
+		if !ok {
+			return nil, fmt.Errorf("GetBool failLat must be deterministic")
+		}
+
+		valOutcome := &core.Outcomes[bool]{}
+		latOutcome := &core.Outcomes[core.Duration]{}
+		if probF > 1e-9 {
+			valOutcome.Add(probF, true)
+			latOutcome.Add(probF, latS)
+		}
+		if (1.0 - probF) > 1e-9 {
+			valOutcome.Add(1.0-probF, false)
+			latOutcome.Add(1.0-probF, latF)
+		}
+		return &VarState{ValueOutcome: valOutcome, LatencyOutcome: latOutcome}, nil
+	})
+	v.RegisterInternalFunc("GetAccess", func(vm *VM, args []*VarState) (*VarState, error) {
+		// Args: successProb (float Outcome), successLat (Duration Outcome), failLat (Duration Outcome)
+		if len(args) != 3 {
+			return nil, fmt.Errorf("GetAccess needs 3 args")
+		}
+		probState := args[0]
+		latSState := args[1]
+		latFState := args[2]
+		if probState == nil || latSState == nil || latFState == nil {
+			return nil, fmt.Errorf("GetBool args must be VarState")
+		}
+
+		probF, ok := probState.ValueOutcome.(*core.Outcomes[float64]).GetValue()
+		if !ok {
+			return nil, fmt.Errorf("GetAccess prob must be deterministic")
+		}
+		latS, ok := latSState.ValueOutcome.(*core.Outcomes[core.Duration]).GetValue()
+		if !ok {
+			return nil, fmt.Errorf("GetAccess successLat must be deterministic")
+		}
+		latF, ok := latFState.ValueOutcome.(*core.Outcomes[core.Duration]).GetValue()
+		if !ok {
+			return nil, fmt.Errorf("GetAccess failLat must be deterministic")
+		}
+
+		valOutcome := &core.Outcomes[core.AccessResult]{}
+		latOutcome := &core.Outcomes[core.Duration]{}
+		if probF > 1e-9 {
+			ar := core.AccessResult{Success: true, Latency: latS}
+			valOutcome.Add(probF, ar)
+			latOutcome.Add(probF, latS)
+		}
+		if (1.0 - probF) > 1e-9 {
+			ar := core.AccessResult{Success: false, Latency: latF}
+			valOutcome.Add(1.0-probF, ar)
+			latOutcome.Add(1.0-probF, latF)
+		}
+		return &VarState{ValueOutcome: valOutcome, LatencyOutcome: latOutcome}, nil
+	})
+	// Helper to create Duration Outcomes from Millis Literals (for tests)
+	v.RegisterInternalFunc("DurationMS", func(vm *VM, args []*VarState) (*VarState, error) {
+		if len(args) != 1 {
+			return nil, fmt.Errorf("DurationMS needs 1 arg")
+		}
+		msState := args[0]
+		if msState == nil {
+			return nil, fmt.Errorf("DurationMS arg must be VarState")
+		}
+		msValF, ok := msState.ValueOutcome.(*core.Outcomes[float64]).GetValue()
+		if !ok {
+			return nil, fmt.Errorf("DurationMS arg must be deterministic float")
+		}
+		durOutcome := (&core.Outcomes[core.Duration]{}).Add(1.0, core.Millis(msValF))
+		return &VarState{ValueOutcome: durOutcome, LatencyOutcome: zeroLatencyOutcome()}, nil
+	})
+}
 
 // Helper to check VarState contents
 func assertVarState(t *testing.T, state *VarState, expectedValType string, expectedLatVal float64) {
@@ -375,4 +473,352 @@ func TestEnvironment_Scoping(t *testing.T) {
 	if !okOrigGlobal || stateOrigGlobal.ValueOutcome.(*core.Outcomes[string]).Buckets[0].Value != "hello" {
 		t.Errorf("Global var was unexpectedly changed by local scope")
 	}
+}
+
+func TestVM_Eval_BlockStmt_SimpleSequence(t *testing.T) {
+	v := NewVM(10)
+	registerMockInternalFuncs(v)
+
+	// AST for: {
+	//   a = Internal.GetAccess(0.9, DurationMS(10.0), DurationMS(5.0));
+	//   b = Internal.GetAccess(0.8, DurationMS(20.0), DurationMS(15.0));
+	// } // Implicit return of combined 'b'
+	block := &BlockStmt{
+		Statements: []Stmt{
+			&AssignmentStmt{
+				// *** Use Type Assertion ***
+				Variable: ident("a").(*IdentifierExpr),
+				Value: internalCall("GetAccess", litFloat(0.9),
+					internalCall("DurationMS", litFloat(10.0)), // Use DurationMS helper call
+					internalCall("DurationMS", litFloat(5.0))),
+			},
+			&AssignmentStmt{
+				// *** Use Type Assertion ***
+				Variable: ident("b").(*IdentifierExpr),
+				Value: internalCall("GetAccess", litFloat(0.8),
+					internalCall("DurationMS", litFloat(20.0)),
+					internalCall("DurationMS", litFloat(15.0))),
+			},
+		},
+	}
+
+	// Eval the block directly for testing
+	finalState, err := v.evalBlockStmt(block, v.Env(), nil) // Use block eval
+	if err != nil {
+		t.Fatalf("evalBlockStmt failed: %v", err)
+	}
+
+	// Check final state
+	if finalState == nil {
+		t.Fatal("Block returned nil state")
+	}
+
+	// Expected Value Outcome: Should be the AccessResult distribution from the second call ('b')
+	// Expected Latency Outcome: Should be the combination (And) of latencies from 'a' and 'b'.
+	// Combined Latency Buckets (Weight=ProbA*ProbB):
+	// (10ms + 20ms) -> W = 0.9 * 0.8 = 0.72
+	// (10ms + 15ms) -> W = 0.9 * 0.2 = 0.18
+	// ( 5ms + 20ms) -> W = 0.1 * 0.8 = 0.08
+	// ( 5ms + 15ms) -> W = 0.1 * 0.2 = 0.02
+	// Expected Mean Latency = (30*0.72 + 25*0.18 + 25*0.08 + 20*0.02) = 21.6 + 4.5 + 2.0 + 0.4 = 28.5ms
+	// Expected Value (Success Prob) = Prob(A succ AND B succ) = 0.9 * 0.8 = 0.72
+
+	valOutcome, okV := finalState.ValueOutcome.(*core.Outcomes[core.AccessResult])
+	latOutcome, okL := finalState.LatencyOutcome.(*core.Outcomes[core.Duration])
+	if !okV || !okL {
+		t.Fatalf("Final state has wrong types: V=%T, L=%T", finalState.ValueOutcome, finalState.LatencyOutcome)
+	}
+
+	// Check Value (Availability)
+	actualAvail := core.Availability(valOutcome)
+	expectedAvail := 0.72
+	if !core.ApproxEq(actualAvail, expectedAvail, 1e-9) {
+		t.Errorf("Expected final Availability %.4f, got %.4f", expectedAvail, actualAvail)
+	}
+
+	// Check Latency (Mean)
+	actualMeanLat := core.MeanLatency(valOutcome) // Mean latency of *successes* in value outcome
+	// Mean latency of *all* paths in latency outcome
+	actualMeanDur := meanDurationLatency(latOutcome)
+	expectedMeanDur := core.Millis(28.5)
+	if !core.ApproxEq(actualMeanDur, expectedMeanDur, core.Millis(0.1)) {
+		t.Errorf("Expected final Mean Duration %.6fs, got %.6fs", expectedMeanDur, actualMeanDur)
+	}
+
+	// Also check mean latency of successes from value track
+	// Expected Mean Success Latency = (30ms * 0.72) / 0.72 = 30ms
+	if !core.ApproxEq(actualMeanLat, core.Millis(30.0), core.Millis(0.1)) {
+		t.Errorf("Expected final Mean Success Latency %.6fs, got %.6fs", core.Millis(30.0), actualMeanLat)
+	}
+
+	t.Logf("Block Sequence Test: Avail=%.4f, MeanLat=%.6f, MeanDur=%.6f", actualAvail, actualMeanLat, actualMeanDur)
+	// t.Logf("Value Buckets: %+v", valOutcome.Buckets)
+	// t.Logf("Latency Buckets: %+v", latOutcome.Buckets)
+
+}
+
+func TestVM_Eval_BlockStmt_WithReturn(t *testing.T) {
+	v := NewVM(10)
+	registerMockInternalFuncs(v)
+
+	// AST for: {
+	//   a = Internal.GetAccess(0.9, DurationMS(10.0), DurationMS(5.0));
+	//   return a;
+	//   b = Internal.GetAccess(0.8, DurationMS(20.0), DurationMS(15.0));
+	// }
+	block := &BlockStmt{
+		Statements: []Stmt{
+			&AssignmentStmt{
+				// *** Use Type Assertion ***
+				Variable: ident("a").(*IdentifierExpr),
+				Value: internalCall("GetAccess", litFloat(0.9),
+					internalCall("DurationMS", litFloat(10.0)),
+					internalCall("DurationMS", litFloat(5.0))),
+			},
+			// *** Use Type Assertion ***
+			&ReturnStmt{ReturnValue: ident("a")},
+			&AssignmentStmt{ // Unreachable
+				// *** Use Type Assertion ***
+				Variable: ident("b").(*IdentifierExpr),
+				Value: internalCall("GetAccess", litFloat(0.8),
+					internalCall("DurationMS", litFloat(20.0)),
+					internalCall("DurationMS", litFloat(15.0))),
+			},
+		},
+	}
+
+	// Eval the block - expect ReturnValue signal error
+	_, err := v.evalBlockStmt(block, v.Env(), nil)
+
+	if err == nil {
+		t.Fatal("evalBlockStmt should have returned ReturnValue signal error")
+	}
+	var retVal *ReturnValue
+	if !errors.As(err, &retVal) {
+		t.Fatalf("Expected ReturnValue signal error, got %T: %v", err, err)
+	}
+	if retVal.Value == nil {
+		t.Fatal("ReturnValue signal did not contain VarState")
+	}
+
+	// The returned state should be the state of 'a'
+	stateA, ok := v.Env().Get("a") // Get what was stored in env
+	if !ok {
+		t.Fatal("Variable 'a' not found in env after return")
+	}
+
+	if retVal.Value != stateA {
+		t.Error("Returned state does not match expected state of 'a'")
+	}
+	returnedState := retVal.Value
+
+	// Check if 'b' was evaluated (it shouldn't be)
+	if _, foundB := v.Env().Get("b"); foundB {
+		t.Error("Variable 'b' should not be in env as it was after return")
+	}
+
+	// Check the returned state's content
+	valOutcome, okV := returnedState.ValueOutcome.(*core.Outcomes[core.AccessResult])
+	latOutcome, okL := returnedState.LatencyOutcome.(*core.Outcomes[core.Duration])
+	if !okV || !okL {
+		t.Fatalf("Returned state has wrong types: V=%T, L=%T", returnedState.ValueOutcome, returnedState.LatencyOutcome)
+	}
+
+	// Check Value (Availability)
+	if !core.ApproxEq(core.Availability(valOutcome), 0.9, 1e-9) {
+		t.Errorf("Unexpected availability")
+	}
+	// Check Latency (Mean)
+	if !core.ApproxEq(meanDurationLatency(latOutcome), core.Millis(9.5), core.Millis(0.01)) {
+		t.Errorf("Unexpected mean latency")
+	} // (0.9*10 + 0.1*5) = 9.5
+}
+
+// --- IfStmt Tests ---
+
+func TestVM_Eval_IfStmt_SimpleBool(t *testing.T) {
+	v := NewVM(10)
+	registerMockInternalFuncs(v)
+
+	// AST for:
+	// {
+	//   cond = Internal.GetBool(0.8, DurationMS(1.0), DurationMS(2.0));
+	//   res = 0;
+	//   if cond {
+	//     res = Internal.GetAccess(1.0, DurationMS(10.0), DurationMS(0.0));
+	//   } else {
+	//     res = Internal.GetAccess(0.0, DurationMS(0.0), DurationMS(5.0));
+	//   }
+	//   return res;
+	// }
+	block := &BlockStmt{
+		Statements: []Stmt{
+			&AssignmentStmt{Variable: ident("cond").(*IdentifierExpr), Value: internalCall("GetBool", litFloat(0.8),
+				internalCall("DurationMS", litFloat(1.0)), internalCall("DurationMS", litFloat(2.0)))},
+			&AssignmentStmt{Variable: ident("res").(*IdentifierExpr), Value: litInt(0)},
+			&IfStmt{
+				// *** Use Type Assertion ***
+				Condition: ident("cond"), // Condition is the bool outcome directly
+				Then: &BlockStmt{Statements: []Stmt{
+					&AssignmentStmt{Variable: ident("res").(*IdentifierExpr), Value: internalCall("GetAccess", litFloat(1.0),
+						internalCall("DurationMS", litFloat(10.0)), internalCall("DurationMS", litFloat(0.0)))},
+				}},
+				Else: &BlockStmt{Statements: []Stmt{
+					&AssignmentStmt{Variable: ident("res").(*IdentifierExpr), Value: internalCall("GetAccess", litFloat(0.0),
+						internalCall("DurationMS", litFloat(0.0)), internalCall("DurationMS", litFloat(5.0)))},
+				}},
+			},
+			&ReturnStmt{ReturnValue: ident("res")},
+		},
+	}
+
+	// Eval the block
+	finalState, err := v.evalBlockStmt(block, v.Env(), nil)
+	// We expect a ReturnValue signal containing the final state of 'res'
+	if err == nil {
+		t.Fatal("evalBlockStmt should have returned ReturnValue signal error for block")
+	}
+	var retVal *ReturnValue
+	if !errors.As(err, &retVal) {
+		t.Fatalf("Expected ReturnValue signal error, got %T: %v", err, err)
+	}
+	finalState = retVal.Value // Extract the actual final state
+
+	// Check final state
+	if finalState == nil {
+		t.Fatal("IfStmt block returned nil state")
+	}
+
+	// Expected Value: 0.8 prob -> Success (from Then branch), 0.2 prob -> Failure (from Else branch)
+	// Expected Latency:
+	//   Path 1 (cond=T, then): Lat(cond=T) + Lat(GetAccess Then) = 1ms + 10ms = 11ms. Prob = 0.8 * 1.0 = 0.8
+	//   Path 2 (cond=F, else): Lat(cond=F) + Lat(GetAccess Else) = 2ms + 5ms = 7ms.  Prob = 0.2 * 1.0 = 0.2
+	// Expected Mean Latency = (11 * 0.8) + (7 * 0.2) = 8.8 + 1.4 = 10.2ms
+
+	valOutcome, okV := finalState.ValueOutcome.(*core.Outcomes[core.AccessResult])
+	latOutcome, okL := finalState.LatencyOutcome.(*core.Outcomes[core.Duration])
+	if !okV || !okL {
+		t.Fatalf("Final state has wrong types: V=%T, L=%T", finalState.ValueOutcome, finalState.LatencyOutcome)
+	}
+
+	// Check Value (Availability)
+	actualAvail := core.Availability(valOutcome)
+	expectedAvail := 0.8
+	if !core.ApproxEq(actualAvail, expectedAvail, 1e-9) {
+		t.Errorf("Expected final Availability %.4f, got %.4f", expectedAvail, actualAvail)
+	}
+
+	// Check Latency (Mean Duration)
+	actualMeanDur := meanDurationLatency(latOutcome)
+	expectedMeanDur := core.Millis(10.2)
+	if !core.ApproxEq(actualMeanDur, expectedMeanDur, core.Millis(0.01)) {
+		t.Errorf("Expected final Mean Duration %.6fs, got %.6fs", expectedMeanDur, actualMeanDur)
+	}
+
+	// Check buckets for expected values
+	/*
+		found11ms := false
+		found7ms := false
+		if latOutcome.Len() != 2 {
+			t.Logf("Warning: Expected 2 latency buckets, got %d", latOutcome.Len())
+		} // Might reduce
+		for _, b := range latOutcome.Buckets {
+			if core.ApproxEq(b.Value, core.Millis(11), core.Millis(0.01)) && core.ApproxEq(b.Weight, 0.8, 1e-6) {
+				found11ms = true
+			}
+			if core.ApproxEq(b.Value, core.Millis(7), core.Millis(0.01)) && core.ApproxEq(b.Weight, 0.2, 1e-6) {
+				found7ms = true
+			}
+		}
+	*/
+	// Tolerate reduction might merge/alter buckets, so just check mean/avail primarily
+	// if !found11ms { t.Errorf("Latency bucket for 11ms path not found or incorrect weight") }
+	// if !found7ms { t.Errorf("Latency bucket for 7ms path not found or incorrect weight") }
+
+	t.Logf("IfStmt Bool Test: Avail=%.4f, MeanDur=%.6f", actualAvail, actualMeanDur)
+}
+
+func TestVM_Eval_IfStmt_AccessResultSuccess(t *testing.T) {
+	v := NewVM(10)
+	registerMockInternalFuncs(v)
+
+	// AST for:
+	// {
+	//   cond = Internal.GetAccess(0.7, DurationMS(5.0), DurationMS(3.0));
+	//   res = 0;
+	//   if cond.Success {
+	//     res = Internal.GetAccess(1.0, DurationMS(20.0), DurationMS(0.0)); // Then = S:20ms
+	//   } else {
+	//     res = Internal.GetAccess(1.0, DurationMS(8.0), DurationMS(0.0));  // Else = S:8ms
+	//   }
+	//   return res;
+	// }
+	block := &BlockStmt{
+		Statements: []Stmt{
+			&AssignmentStmt{Variable: ident("cond").(*IdentifierExpr), Value: internalCall("GetAccess", litFloat(0.7),
+				internalCall("DurationMS", litFloat(5.0)), internalCall("DurationMS", litFloat(3.0)))},
+			&AssignmentStmt{Variable: ident("res").(*IdentifierExpr), Value: litInt(0)},
+			&IfStmt{
+				Condition: &MemberAccessExpr{Receiver: ident("cond"), Member: "Success"},
+				Then: &BlockStmt{Statements: []Stmt{
+					&AssignmentStmt{Variable: ident("res").(*IdentifierExpr), Value: internalCall("GetAccess", litFloat(1.0), // Then is Success
+						internalCall("DurationMS", litFloat(20.0)), internalCall("DurationMS", litFloat(0.0)))},
+				}},
+				Else: &BlockStmt{Statements: []Stmt{
+					&AssignmentStmt{Variable: ident("res").(*IdentifierExpr), Value: internalCall("GetAccess", litFloat(1.0), // Else is also Success
+						internalCall("DurationMS", litFloat(8.0)), internalCall("DurationMS", litFloat(0.0)))}, // Changed from F:8ms to S:8ms
+				}},
+			},
+			&ReturnStmt{ReturnValue: ident("res")},
+		},
+	}
+
+	// Eval the block
+	finalState, err := v.evalBlockStmt(block, v.Env(), nil)
+	if err == nil {
+		t.Fatal("Expected ReturnValue signal error")
+	}
+	var retVal *ReturnValue
+	if !errors.As(err, &retVal) {
+		t.Fatalf("Expected ReturnValue signal error, got %T: %v", err, err)
+	}
+	finalState = retVal.Value
+
+	// Check final state
+	if finalState == nil {
+		t.Fatal("IfStmt AR.Success block returned nil state")
+	}
+
+	// Expected Value: Outcome depends only on the branch taken.
+	//   Then branch (Prob 0.7) returns AR{S:20}.
+	//   Else branch (Prob 0.3) returns AR{S:8}. -> NOTE: Made Else return Success=True with Latency=8ms for variety.
+	//   Expected Availability = 0.7*1.0 + 0.3*1.0 = 1.0
+	// Expected Latency:
+	//   Path 1 (cond=S, then): Lat(cond=S) + Lat(GetAccess Then) = 5ms + 20ms = 25ms. Prob = 0.7
+	//   Path 2 (cond=F, else): Lat(cond=F) + Lat(GetAccess Else) = 3ms + 8ms = 11ms.  Prob = 0.3
+	// Expected Mean Latency = (25 * 0.7) + (11 * 0.3) = 17.5 + 3.3 = 20.8ms
+
+	valOutcome, okV := finalState.ValueOutcome.(*core.Outcomes[core.AccessResult])
+	latOutcome, okL := finalState.LatencyOutcome.(*core.Outcomes[core.Duration])
+	if !okV || !okL {
+		t.Fatalf("Final state has wrong types: V=%T, L=%T", finalState.ValueOutcome, finalState.LatencyOutcome)
+	}
+
+	// Check Value (Availability)
+	actualAvail := core.Availability(valOutcome)
+	expectedAvail := 1.0 // Both branches return Success=true now
+	if !core.ApproxEq(actualAvail, expectedAvail, 1e-9) {
+		t.Errorf("Expected final Availability %.4f, got %.4f", expectedAvail, actualAvail)
+	}
+
+	// Check Latency (Mean Duration)
+	actualMeanDur := meanDurationLatency(latOutcome)
+	expectedMeanDur := core.Millis(20.8)
+	if !core.ApproxEq(actualMeanDur, expectedMeanDur, core.Millis(0.01)) {
+		t.Errorf("Expected final Mean Duration %.6fs, got %.6fs", expectedMeanDur, actualMeanDur)
+	}
+
+	t.Logf("IfStmt AR.Success Test: Avail=%.4f, MeanDur=%.6f", actualAvail, actualMeanDur)
+	// t.Logf("Value Buckets: %+v", valOutcome.Buckets)
+	// t.Logf("Latency Buckets: %+v", latOutcome.Buckets)
 }

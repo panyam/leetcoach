@@ -38,7 +38,7 @@ func (rv *ReturnValue) Unwrap() error {
 
 // InternalFunction defines the signature for built-in functions callable by the VM.
 // It receives the vm instance (for potential access to env/stack) and evaluated arguments.
-type InternalFunction func(vm *VM, args []any) (any, error)
+type InternalFunction func(vm *VM, args []*VarState) (*VarState, error)
 
 // --- Reducer Registry ---
 
@@ -123,58 +123,49 @@ func (v *VM) Eval(node Node) (*VarState, error) {
 		resultState, err = v.evalLiteral(n)
 	case *IdentifierExpr:
 		resultState, err = v.evalIdentifier(n)
+	case *InternalCallExpr:
+		resultState, err = v.evalInternalCall(n)
+	case *AndExpr:
+		resultState, err = v.evalAndExpr(n)
+
+	// --- Statement Nodes ---
+	case *BlockStmt:
+		// When Eval is called directly on a BlockStmt (e.g., top level),
+		// there is no initial context from an outer structure like IfStmt.
+		// evalBlockStmt now returns the result directly, doesn't leave on stack implicitly
+		resultState, err = v.evalBlockStmt(n, v.env, nil) // Pass nil context
+	case *AssignmentStmt:
+		resultState, err = v.evalAssignmentStmt(n)
+	case *IfStmt: // <-- Will be implemented now
+		resultState, err = v.evalIfStmt(n)
+	case *ReturnStmt:
+		resultState, err = v.evalReturnStmt(n) // Return signals via special error/value
+	case *MemberAccessExpr:
+		resultState, err = v.evalMemberAccessExpr(n) // <-- Call the actual implementation
+	case *ExprStmt:
+		resultState, err = v.evalExprStmt(n)
 		/*
-			case *InternalCallExpr:
-				resultState, err = v.evalInternalCall(n)
-			case *AndExpr:
-				resultState, err = v.evalAndExpr(n)
 			case *CallExpr:
 				resultState, err = v.evalCallExpr(n)
-			case *MemberAccessExpr:
-				// Member access is often handled *within* evalCallExpr,
-				// but we might need a stub if it can be evaluated alone.
-				resultState, err = v.evalMemberAccessExpr(n) // <-- Call the actual implementation
 			case *RepeatExpr:
 				resultState, err = v.evalRepeatExpr(n)
-
-			// --- Statement Nodes ---
-			case *BlockStmt:
-				// When Eval is called directly on a BlockStmt (e.g., top level),
-				// there is no initial context from an outer structure like IfStmt.
-				// evalBlockStmt now returns the result directly, doesn't leave on stack implicitly
-				blockResult, evalErr := v.evalBlockStmt(n, v.env, nil) // Pass nil context
-				// Only push if no error and result is non-nil (avoids pushing nil return signal value)
-				if evalErr == nil && blockResult != nil {
-					v.push(blockResult) // Push the final result of the block evaluation
-				}
-				resultState, err = evalErr // Assign any error from the block execution
-			case *AssignmentStmt:
-				resultState, err = v.evalAssignmentStmt(n)
-			case *ReturnStmt:
-				resultState, err = v.evalReturnStmt(n) // Return signals via special error/value
-			case *ExprStmt:
-				resultState, err = v.evalExprStmt(n)
-			case *IfStmt: // <-- Will be implemented now
-				resultState, err = v.evalIfStmt(n)
-
+			// ... other cases ...
+			case *DistributeExpr: // Placeholder for distribute expression
+				// resultState, err = v.evalDistributeExpr(n) // Implement this
+				return nil, fmt.Errorf("%w: DistributeExpr", ErrNotImplemented)
+			case *DelayStmt: // Placeholder for delay statement
+				// resultState, err = v.evalDelayStmt(n) // Implement this
+				return nil, fmt.Errorf("%w: DelayStmt", ErrNotImplemented)
+			// Add placeholders for ParallelExpr, FanoutExpr, etc. if they are in ast.go
+			case *ParallelExpr:
+				return nil, fmt.Errorf("%w: ParallelExpr", ErrNotImplemented)
+			case *FanoutExpr:
+				return nil, fmt.Errorf("%w: FanoutExpr", ErrNotImplemented)
+			case *FilterExpr:
+				return nil, fmt.Errorf("%w: FilterExpr", ErrNotImplemented)
+			case *SwitchExpr:
+				return nil, fmt.Errorf("%w: SwitchExpr", ErrNotImplemented)
 		*/
-	// ... other cases ...
-	case *DistributeExpr: // Placeholder for distribute expression
-		// resultState, err = v.evalDistributeExpr(n) // Implement this
-		return nil, fmt.Errorf("%w: DistributeExpr", ErrNotImplemented)
-	case *DelayStmt: // Placeholder for delay statement
-		// resultState, err = v.evalDelayStmt(n) // Implement this
-		return nil, fmt.Errorf("%w: DelayStmt", ErrNotImplemented)
-	// Add placeholders for ParallelExpr, FanoutExpr, etc. if they are in ast.go
-	case *ParallelExpr:
-		return nil, fmt.Errorf("%w: ParallelExpr", ErrNotImplemented)
-	case *FanoutExpr:
-		return nil, fmt.Errorf("%w: FanoutExpr", ErrNotImplemented)
-	case *FilterExpr:
-		return nil, fmt.Errorf("%w: FilterExpr", ErrNotImplemented)
-	case *SwitchExpr:
-		return nil, fmt.Errorf("%w: SwitchExpr", ErrNotImplemented)
-
 	default:
 		return nil, fmt.Errorf("Eval not implemented for node type %T", node)
 	}
@@ -416,8 +407,21 @@ func (v *VM) registerDefaultReducers() {
 	// --- Duration Reducers ---
 	// Duration + Duration
 	_ = v.RegisterSequentialReducer(dur, dur, func(a, b any) any {
+		latA, okA := a.(*core.Outcomes[core.Duration])
+		latB, okB := b.(*core.Outcomes[core.Duration])
+		if !okA || !okB {
+			// Handle error or panic - this indicates VM called with wrong types
+			panic(fmt.Sprintf("Duration reducer called with incompatible types: %T, %T", a, b))
+		}
 		reducer := func(vA, vB core.Duration) core.Duration { return vA + vB }
-		return core.And(a.(*core.Outcomes[core.Duration]), b.(*core.Outcomes[core.Duration]), reducer)
+		// Ensure core.And handles nil inputs gracefully or check here
+		if latA == nil {
+			return latB
+		} // If one is nil, return the other
+		if latB == nil {
+			return latA
+		}
+		return core.And(latA, latB, reducer)
 	})
 
 	// --- Bool Reducers ---

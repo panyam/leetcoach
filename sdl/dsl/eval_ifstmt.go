@@ -5,6 +5,7 @@ package dsl
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	// Still needed for getOutcomeTypeString if we keep that helper
 	"github.com/panyam/leetcoach/sdl/core"
@@ -15,9 +16,179 @@ var (
 	ErrConditionSplitFailed = errors.New("failed to split outcome based on condition")
 )
 
+// selectSplitPredicate returns the predicate for bool outcomes.
+// Error if condition didn't evaluate to Outcomes[bool].
+func selectSplitPredicate(conditionValueOutcome any) (func(v bool) bool, error) {
+	if _, ok := conditionValueOutcome.(*core.Outcomes[bool]); ok {
+		// The predicate just returns the boolean value itself
+		return func(v bool) bool {
+			return v
+		}, nil
+	}
+	return nil, fmt.Errorf("%w: condition evaluated to type %T, expected *core.Outcomes[bool]",
+		ErrInvalidConditionType, conditionValueOutcome)
+}
+
+// evalIfStmt handles conditional execution using dual tracks.
+// It evaluates the condition (expecting Outcomes[bool]), splits value and latency tracks,
+// evaluates the appropriate branches, combines the results, applies reduction,
+// and returns the final combined state and error (including ReturnValue signal).
+func (v *VM) evalIfStmt(stmt *IfStmt) (*VarState, error) {
+	// 1. Evaluate the Condition Expression
+	conditionState, err := v.Eval(stmt.Condition)
+	if err != nil {
+		var retVal *ReturnValue // Check for early return during condition eval
+		if errors.As(err, &retVal) {
+			return retVal.Value, err
+		}
+		return nil, fmt.Errorf("error evaluating if condition: %w", err)
+	}
+	if conditionState == nil || conditionState.ValueOutcome == nil {
+		return nil, fmt.Errorf("internal error: nil state or value outcome from condition evaluation")
+	}
+
+	// 2. Get the Boolean Predicate
+	// Relies *only* on the type of the value outcome.
+	boolPredicate, err := selectSplitPredicate(conditionState.ValueOutcome)
+	if err != nil {
+		return nil, err // Condition didn't yield Outcomes[bool]
+	}
+	boolOutcome, _ := conditionState.ValueOutcome.(*core.Outcomes[bool]) // Cast is safe here
+
+	// 3. Split Value Track (Outcomes[bool])
+	thenValOutcomeAny, elseValOutcomeAny := boolOutcome.Split(boolPredicate)
+	thenValOutcome := thenValOutcomeAny
+	elseValOutcome := elseValOutcomeAny
+
+	// 4. Split Latency Track based on Value Predicate
+	latOutcome, ok := conditionState.LatencyOutcome.(*core.Outcomes[core.Duration])
+	if !ok || latOutcome == nil {
+		latOutcome = zeroLatencyOutcome() // Use zero if missing
+	}
+	thenLatOutcome, elseLatOutcome, splitErr := SplitLatenciesBasedOnValue(latOutcome, boolOutcome, boolPredicate)
+	if splitErr != nil {
+		return nil, fmt.Errorf("error splitting latency based on value for if: %w", splitErr)
+	}
+
+	// 5. Prepare contexts for branch evaluation
+	thenCtxState := &VarState{ValueOutcome: thenValOutcome, LatencyOutcome: thenLatOutcome}
+	elseCtxState := &VarState{ValueOutcome: elseValOutcome, LatencyOutcome: elseLatOutcome}
+
+	// 6. Determine which branches have probability weight
+	thenHasWeight := outcomeHasWeight(thenCtxState.ValueOutcome)
+	elseHasWeight := outcomeHasWeight(elseCtxState.ValueOutcome)
+
+	var finalThenResultState *VarState = nil // Initialize result states
+	var finalElseResultState *VarState = nil
+	var branchErr error
+
+	// 7. Evaluate Then Branch (if it has weight)
+	if thenHasWeight && stmt.Then != nil { // Also check if Then block exists
+		finalThenResultState, branchErr = v.evalBlockStmt(stmt.Then, v.env, thenCtxState)
+		if branchErr != nil {
+			var retVal *ReturnValue
+			if errors.As(branchErr, &retVal) {
+				return retVal.Value, branchErr
+			} // Propagate return
+			return nil, fmt.Errorf("error in 'then' branch: %w", branchErr)
+		}
+	} else if thenHasWeight && stmt.Then == nil {
+		// Condition was true, but no 'then' block - result is the 'then' context
+		finalThenResultState = thenCtxState
+	}
+
+	// 8. Evaluate Else Branch (if it exists and has weight)
+	if stmt.Else != nil && elseHasWeight {
+		finalElseResultState, branchErr = v.evalBlockStmt(stmt.Else, v.env, elseCtxState)
+		if branchErr != nil {
+			var retVal *ReturnValue
+			if errors.As(branchErr, &retVal) {
+				return retVal.Value, branchErr
+			} // Propagate return
+			return nil, fmt.Errorf("error in 'else' branch: %w", branchErr)
+		}
+	} else if stmt.Else == nil && elseHasWeight {
+		// No Else block, result for this path is the original 'else' context
+		finalElseResultState = elseCtxState
+	}
+
+	// 9. Combine Results from Branches using Append
+	var combinedValOutcome any
+	var combinedLatOutcome any
+
+	// Combine Value Outcomes (use type switch on *one* of the results, assuming types match if both non-nil)
+	refValOutcome := finalThenResultState.SafeValueOutcome()
+	if refValOutcome == nil {
+		refValOutcome = finalElseResultState.SafeValueOutcome()
+	} // Use else if then was nil
+
+	switch refValOutcome.(type) {
+	case nil: // Both branches resulted in nil value outcome
+		combinedValOutcome = nil
+	case *core.Outcomes[bool]:
+		tv := finalThenResultState.SafeValueOutcome().(*core.Outcomes[bool])
+		ev := finalElseResultState.SafeValueOutcome().(*core.Outcomes[bool])
+		if tv == nil {
+			tv = &core.Outcomes[bool]{}
+		} // Need non-nil receiver for Append
+		combinedValOutcome = tv.Append(ev) // Append handles nil ev
+	case *core.Outcomes[core.AccessResult]: // If branches can return AccessResult (e.g., from calls)
+		tv := finalThenResultState.SafeValueOutcome().(*core.Outcomes[core.AccessResult])
+		ev := finalElseResultState.SafeValueOutcome().(*core.Outcomes[core.AccessResult])
+		if tv == nil {
+			tv = &core.Outcomes[core.AccessResult]{}
+		}
+		combinedValOutcome = tv.Append(ev)
+	// Add other discrete types as needed
+	default:
+		// This occurs if branches return incompatible types or unsupported types
+		// We need to know the expected return type of the 'if' expression if used as value
+		// For now, error if types seem incompatible or unknown during append.
+		if finalThenResultState.SafeValueOutcome() != nil && finalElseResultState.SafeValueOutcome() != nil &&
+			reflect.TypeOf(finalThenResultState.SafeValueOutcome()) != reflect.TypeOf(finalElseResultState.SafeValueOutcome()) {
+			return nil, fmt.Errorf("if branch value type mismatch: then=%T, else=%T", finalThenResultState.SafeValueOutcome(), finalElseResultState.SafeValueOutcome())
+		}
+		return nil, fmt.Errorf("unsupported type %T in if branch value combination", finalThenResultState.SafeValueOutcome())
+	}
+
+	// Combine Latency Outcomes (always Duration)
+	lat1, _ := finalThenResultState.SafeLatencyOutcome().(*core.Outcomes[core.Duration])
+	lat2, _ := finalElseResultState.SafeLatencyOutcome().(*core.Outcomes[core.Duration])
+	if lat1 == nil {
+		lat1 = zeroLatencyOutcome()
+	} // Use zero if nil
+	if lat2 == nil {
+		lat2 = zeroLatencyOutcome()
+	}
+	// Need non-nil receiver for Append
+	tempLat := lat1.Copy() // Copy lat1 to avoid modifying it if it was context
+	combinedLatOutcome = tempLat.Append(lat2)
+
+	// Create combined state
+	finalCombinedState := &VarState{
+		ValueOutcome:   combinedValOutcome,
+		LatencyOutcome: combinedLatOutcome,
+	}
+
+	// Handle case where neither branch produced output
+	if finalCombinedState.ValueOutcome == nil && finalCombinedState.LatencyOutcome.(*core.Outcomes[core.Duration]).Len() == 0 {
+		finalCombinedState = createIdentityState()
+	} else if finalCombinedState.ValueOutcome != nil && finalCombinedState.LatencyOutcome == nil {
+		// Should not happen if we initialize lat1/lat2 correctly above
+		finalCombinedState.LatencyOutcome = zeroLatencyOutcome()
+	}
+
+	// 10. Apply Reduction
+	reducedState, reduceErr := v.reduceStateIfNeeded(finalCombinedState)
+	if reduceErr != nil {
+		return nil, fmt.Errorf("error reducing combined IfStmt result: %w", reduceErr)
+	}
+
+	// 11. Return the final combined state
+	return reducedState, nil
+}
+
 // outcomeHasWeight checks if an outcome object (expected *core.Outcomes[T]) is non-nil and has weight > 0
-// putting it here temporarily
-var ErrInvalidMemberAccess = errors.New("invalid member access")
 
 func outcomeHasWeight(outcome any) bool {
 	if outcome == nil {
@@ -30,266 +201,6 @@ func outcomeHasWeight(outcome any) bool {
 	// If it's not an OutcomeContainer, log a warning but assume no weight?
 	fmt.Printf("Warning: outcomeHasWeight received non-OutcomeContainer type: %T\n", outcome)
 	return false
-}
-
-// selectSplitPredicate dynamically creates the predicate function func(v any) bool
-// based on the Condition expression.
-func selectSplitPredicate(conditionExpr Expr, conditionValueOutcome any) (func(v any) bool, error) {
-	// Case 1: Condition is direct boolean outcome
-	if _, ok := conditionValueOutcome.(*core.Outcomes[bool]); ok {
-		return func(v any) bool {
-			b, _ := v.(bool) // Assume type assertion works
-			return b
-		}, nil
-	}
-
-	// Case 2: Condition is accessing '.Success' (e.g., myVar.Success)
-	if memExpr, ok := conditionExpr.(*MemberAccessExpr); ok && memExpr.Member == "Success" {
-		// Check the type of the outcome associated with the receiver
-		switch conditionValueOutcome.(type) {
-		case *core.Outcomes[core.AccessResult]:
-			return func(v any) bool {
-				ar, ok := v.(core.AccessResult)
-				return ok && ar.Success // Check type assertion success
-			}, nil
-		case *core.Outcomes[core.RangedResult]:
-			return func(v any) bool {
-				rr, ok := v.(core.RangedResult)
-				return ok && rr.Success // Check type assertion success
-			}, nil
-		// Add other types that have a '.Success' field if necessary
-		default:
-			return nil, fmt.Errorf("%w: cannot access '.Success' on value outcome type %T", ErrInvalidMemberAccess, conditionValueOutcome)
-		}
-	}
-
-	// TODO: Handle other conditions? e.g., == checking discrete values?
-	// Example: if myVar == MyEnumValue.CaseA
-	// Requires evaluating the RHS, getting its deterministic value,
-	// and creating a predicate `func(v any) bool { return v == rhsValue }`
-
-	// If neither matches, the condition isn't supported yet
-	return nil, fmt.Errorf("%w: expression %q (%T outcome) not supported", ErrInvalidConditionType, conditionExpr.String(), conditionValueOutcome)
-}
-
-// splitDualTrack splits both value and latency tracks using type assertions and core helpers.
-// Returns (thenVal, thenLat), (elseVal, elseLat), error
-func splitDualTrack(vm *VM, conditionExpr Expr, conditionState *VarState) (any, any, any, any, error) {
-	if conditionState == nil || conditionState.ValueOutcome == nil {
-		zeroLat := zeroLatencyOutcome()
-		return nil, zeroLat, nil, zeroLat, nil
-	}
-
-	// 1. Select the predicate based on the condition expression and value outcome type
-	splitPredicateAny, err := selectSplitPredicate(conditionExpr, conditionState.ValueOutcome)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-
-	// 2. Split the Value Outcome using type assertion and the existing Split method
-	var thenValOutcome, elseValOutcome any
-
-	switch valOutcome := conditionState.ValueOutcome.(type) {
-	case *core.Outcomes[bool]:
-		predicate := func(v bool) bool { return splitPredicateAny(v) }
-		thenValOutcome, elseValOutcome = valOutcome.Split(predicate)
-	case *core.Outcomes[core.AccessResult]:
-		predicate := func(v core.AccessResult) bool { return splitPredicateAny(v) }
-		thenValOutcome, elseValOutcome = valOutcome.Split(predicate)
-	case *core.Outcomes[core.RangedResult]: // Added RangedResult
-		predicate := func(v core.RangedResult) bool { return splitPredicateAny(v) }
-		thenValOutcome, elseValOutcome = valOutcome.Split(predicate)
-	// TODO: Add cases for other discrete types (enums, etc.)
-	default:
-		return nil, nil, nil, nil, fmt.Errorf("%w: cannot split value outcome of type %T for condition %q",
-			ErrConditionSplitFailed, conditionState.ValueOutcome, conditionExpr.String())
-	}
-
-	// 3. Split the Latency Outcome using the core helper
-	latOutcome, ok := conditionState.LatencyOutcome.(*core.Outcomes[core.Duration])
-	if !ok || latOutcome == nil {
-		zeroLat := zeroLatencyOutcome()
-		return thenValOutcome, zeroLat, elseValOutcome, zeroLat, nil
-	}
-
-	var thenLat, elseLat *core.Outcomes[core.Duration]
-	var splitErr error
-
-	// Call the core helper, passing the correctly typed value outcome and predicate
-	switch valueTypedOutcome := conditionState.ValueOutcome.(type) {
-	case *core.Outcomes[bool]:
-		predicate := func(v bool) bool { return splitPredicateAny(v) }
-		thenLat, elseLat, splitErr = SplitLatenciesBasedOnValue(latOutcome, valueTypedOutcome, predicate)
-	case *core.Outcomes[core.AccessResult]:
-		predicate := func(v core.AccessResult) bool { return splitPredicateAny(v) }
-		thenLat, elseLat, splitErr = SplitLatenciesBasedOnValue(latOutcome, valueTypedOutcome, predicate)
-	case *core.Outcomes[core.RangedResult]:
-		predicate := func(v core.RangedResult) bool { return splitPredicateAny(v) }
-		thenLat, elseLat, splitErr = SplitLatenciesBasedOnValue(latOutcome, valueTypedOutcome, predicate)
-	// Add other cases matching value split
-	default:
-		return nil, nil, nil, nil, fmt.Errorf("internal logic error: unexpected value type %T during latency split", conditionState.ValueOutcome)
-	}
-
-	if splitErr != nil {
-		return nil, nil, nil, nil, fmt.Errorf("error splitting latency based on value: %w", splitErr)
-	}
-
-	return thenValOutcome, thenLat, elseValOutcome, elseLat, nil
-}
-
-// evalIfStmt handles conditional execution using dual tracks and stack accumulation.
-// Returns error only (including ReturnValue signal). Pushes final result onto stack.
-func (v *VM) evalIfStmt(stmt *IfStmt) error {
-	// 1. Evaluate the Condition Expression -> yields the state whose value is tested
-	conditionState, err := v.Eval(stmt.Condition)
-	if err != nil {
-		var retVal *ReturnValue // Check for early return during condition eval
-		if errors.As(err, &retVal) {
-			return err
-		} // Propagate signal
-		return fmt.Errorf("error evaluating if condition: %w", err)
-	}
-	if conditionState == nil {
-		return fmt.Errorf("internal error: nil state from condition evaluation")
-	}
-
-	// 2. Split the condition's dual track based on the predicate
-	thenValCtx, thenLatCtx, elseValCtx, elseLatCtx, splitErr := splitDualTrack(v, stmt.Condition, conditionState)
-	if splitErr != nil {
-		return fmt.Errorf("failed to split distributions for if: %w", splitErr)
-	}
-
-	// --- Prepare contexts for branch evaluation ---
-	thenCtxState := &VarState{ValueOutcome: thenValCtx, LatencyOutcome: thenLatCtx}
-	elseCtxState := &VarState{ValueOutcome: elseValCtx, LatencyOutcome: elseLatCtx}
-
-	// --- Determine which branches have probability ---
-	thenHasWeight := outcomeHasWeight(thenCtxState.ValueOutcome)
-	elseHasWeight := outcomeHasWeight(elseCtxState.ValueOutcome)
-
-	var finalThenResultState *VarState
-	var finalElseResultState *VarState
-	var branchErr error // Tracks errors from branches
-
-	// 3. Evaluate Then Branch (if it has weight)
-	if thenHasWeight {
-		finalThenResultState, branchErr = v.evalBlockStmt(stmt.Then, v.env, thenCtxState)
-		if branchErr != nil {
-			var retVal *ReturnValue
-			if errors.As(branchErr, &retVal) {
-				v.push(retVal.Value) // Push the returned state
-				return branchErr     // Propagate signal
-			}
-			return fmt.Errorf("error in 'then' branch: %w", branchErr)
-		}
-	} else {
-		finalThenResultState = nil // No result for this path
-	}
-
-	// 4. Evaluate Else Branch (if it exists and has weight)
-	if stmt.Else != nil && elseHasWeight {
-		finalElseResultState, branchErr = v.evalBlockStmt(stmt.Else, v.env, elseCtxState)
-		if branchErr != nil {
-			var retVal *ReturnValue
-			if errors.As(branchErr, &retVal) {
-				v.push(retVal.Value) // Push the returned state
-				return branchErr     // Propagate signal
-			}
-			return fmt.Errorf("error in 'else' branch: %w", branchErr)
-		}
-	} else if stmt.Else == nil && elseHasWeight {
-		// No Else block, result is the original 'else' context state
-		finalElseResultState = elseCtxState
-	} else {
-		finalElseResultState = nil // No result for this path
-	}
-
-	// 5. Combine Results using Append
-	var finalValOutcome any
-	var finalLatOutcome any
-
-	// Get Value Outcomes to Append
-	var thenVal, elseVal any
-	if finalThenResultState != nil {
-		thenVal = finalThenResultState.ValueOutcome
-	}
-	if finalElseResultState != nil {
-		elseVal = finalElseResultState.ValueOutcome
-	}
-	// Use type switch for append (replaces core.AppendOutcomes)
-	switch tv := thenVal.(type) {
-	case nil:
-		finalValOutcome = elseVal // Handles elseVal potentially being nil too
-	case *core.Outcomes[bool]:
-		ev, ok := elseVal.(*core.Outcomes[bool])
-		if elseVal == nil || ok {
-			if tv == nil {
-				tv = &core.Outcomes[bool]{}
-			}
-			finalValOutcome = tv.Append(ev)
-		} else {
-			return fmt.Errorf("if branch value type mismatch: then=%T, else=%T", thenVal, elseVal)
-		}
-	case *core.Outcomes[core.AccessResult]:
-		ev, ok := elseVal.(*core.Outcomes[core.AccessResult])
-		if elseVal == nil || ok {
-			if tv == nil {
-				tv = &core.Outcomes[core.AccessResult]{ /* Set And? */ }
-			}
-			finalValOutcome = tv.Append(ev)
-		} else {
-			return fmt.Errorf("if branch value type mismatch: then=%T, else=%T", thenVal, elseVal)
-		}
-	// Add other discrete types if needed
-	default:
-		return fmt.Errorf("unsupported type %T in if branch value combination", thenVal)
-	}
-
-	// Get Latency Outcomes to Append
-	var thenLat, elseLat any
-	if finalThenResultState != nil {
-		thenLat = finalThenResultState.LatencyOutcome
-	}
-	if finalElseResultState != nil {
-		elseLat = finalElseResultState.LatencyOutcome
-	}
-	// Latency is always Outcomes[Duration] or nil
-	lat1, ok1 := thenLat.(*core.Outcomes[core.Duration])
-	lat2, ok2 := elseLat.(*core.Outcomes[core.Duration])
-	if (!ok1 && thenLat != nil) || (!ok2 && elseLat != nil) {
-		return fmt.Errorf("internal error: non-duration outcome in latency track (%T, %T)", thenLat, elseLat)
-	}
-	if lat1 == nil {
-		lat1 = &core.Outcomes[core.Duration]{}
-	} // Ensure non-nil receiver for Append
-	finalLatOutcome = lat1.Append(lat2) // Append handles nil lat2
-
-	// Final combined state
-	finalCombinedState := &VarState{
-		ValueOutcome:   finalValOutcome,
-		LatencyOutcome: finalLatOutcome,
-	}
-
-	// Ensure latency is valid if value exists
-	if finalCombinedState.ValueOutcome != nil && finalCombinedState.LatencyOutcome == nil {
-		finalCombinedState.LatencyOutcome = zeroLatencyOutcome()
-	}
-	// If everything resulted in nil (e.g., empty branches), create identity state
-	if finalCombinedState.ValueOutcome == nil && finalCombinedState.LatencyOutcome == nil {
-		finalCombinedState = createIdentityState()
-	}
-
-	// 6. Apply Reduction
-	reducedState, reduceErr := v.reduceStateIfNeeded(finalCombinedState)
-	if reduceErr != nil {
-		return fmt.Errorf("error reducing combined IfStmt result: %w", reduceErr)
-	}
-
-	// 7. Push the final result onto the stack
-	v.push(reducedState)
-
-	return nil // Success
 }
 
 // SplitLatenciesBasedOnValue splits a duration distribution based on a predicate

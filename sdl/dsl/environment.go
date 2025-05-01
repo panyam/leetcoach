@@ -45,6 +45,21 @@ type VarState struct {
 	LatencyOutcome any // *core.Outcomes[core.Duration]
 }
 
+// Add Safe Accessor helpers to VarState to handle nil pointers gracefully
+func (vs *VarState) SafeValueOutcome() any {
+	if vs == nil {
+		return nil
+	}
+	return vs.ValueOutcome
+}
+
+func (vs *VarState) SafeLatencyOutcome() any {
+	if vs == nil {
+		return nil
+	}
+	return vs.LatencyOutcome
+}
+
 // Set defines or updates a VarState in the *current* environment.
 // It takes separate value and latency outcomes and creates/updates the VarState.
 func (e *Environment) Set(name string, valueOutcome any, latencyOutcome any) {

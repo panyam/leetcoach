@@ -56,6 +56,7 @@ type VM struct {
 	internalFuncs      map[string]InternalFunction
 	maxOutcomeLen      int
 	sequentialReducers map[ReducerKey]core.ReducerFunc[any, any, any] // Registry for AND
+	durationReducer    core.DurationReducerFunc                       // <-- Add configuration field
 }
 
 // NewVM creates a new vm instance.
@@ -69,9 +70,20 @@ func NewVM(maxBuckets int) *VM {
 		internalFuncs:      make(map[string]InternalFunction),
 		sequentialReducers: make(map[ReducerKey]core.ReducerFunc[any, any, any]),
 		maxOutcomeLen:      maxBuckets,
+		durationReducer:    core.ReduceDurationsAdaptive, // <-- Set default reducer
 	}
 	interp.registerDefaultReducers() // Register standard reducers
 	return interp
+}
+
+// SetDurationReducer allows changing the reduction strategy.
+func (v *VM) SetDurationReducer(reducer core.DurationReducerFunc) {
+	if reducer != nil {
+		v.durationReducer = reducer
+	} else {
+		// Maybe default back or error? Default back seems safer.
+		v.durationReducer = core.ReduceDurationsAdaptive
+	}
 }
 
 // Env returns the current environment the vm is using.

@@ -24,7 +24,7 @@ type SignificanceFunction[V any] = func(o *Outcomes[V], index int) float64
 type TrimmerFunc[V any] func(input *Outcomes[V]) *Outcomes[V]
 
 // Adaptively reduce an outcome to fit into a set number of buckets.
-func AdaptiveReduce[V any](o *Outcomes[V], maxBuckets int, sigFunc SignificanceFunction[V]) (out *Outcomes[V]) {
+func AdaptiveReduceOld[V any](o *Outcomes[V], maxBuckets int, sigFunc SignificanceFunction[V]) (out *Outcomes[V]) {
 	type BucketWithImportance[V any] struct {
 		Bucket[V]
 		Importance float64

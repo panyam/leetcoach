@@ -75,8 +75,8 @@ func TestAnalyze_Stateless_Passing(t *testing.T) {
 	for _, check := range result.ExpectationChecks {
 		if !check.Passed {
 			t.Errorf("Expected check for %v %v %.f to pass, but it failed (Actual: %.f)",
-				metricTypeToString(check.Expectation.Metric),
-				operatorTypeToString(check.Expectation.Operator),
+				MetricTypeToString(check.Expectation.Metric),
+				OperatorTypeToString(check.Expectation.Operator),
 				check.Expectation.Threshold,
 				check.ActualValue)
 		}

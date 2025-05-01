@@ -3,71 +3,439 @@ package dsl
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
-// Node interface
+// --- Interfaces ---
+
+// Node represents any node in the Abstract Syntax Tree.
 type Node interface {
-	Pos() int
-	End() int
-	String() string
+	Pos() int       // Starting position (for error reporting)
+	End() int       // Ending position
+	String() string // String representation for debugging/printing
 }
 
-// NodeInfo embeddable struct
+// Expr represents an expression node (evaluates to a value/state).
+type Expr interface {
+	Node
+	exprNode() // Marker method for expressions
+}
+
+// Stmt represents a statement node (performs an action, controls flow).
+type Stmt interface {
+	Node
+	stmtNode() // Marker method for statements
+}
+
+// --- Base Struct ---
+
+// NodeInfo embeddable struct for position tracking.
 type NodeInfo struct{ StartPos, StopPos int }
 
 func (n *NodeInfo) Pos() int       { return n.StartPos }
 func (n *NodeInfo) End() int       { return n.StopPos }
-func (n *NodeInfo) String() string { return "{Node}" }
+func (n *NodeInfo) String() string { return "{Node}" } // Default stringer
 
-// Expr interface
-type Expr interface {
-	Node
-	exprNode()
+// --- Top Level Declarations ---
+
+// File represents the top-level node of a parsed DSL file.
+type File struct {
+	NodeInfo
+	Declarations []Node // ComponentDecl, SystemDecl, OptionsDecl, EnumDecl, ImportDecl
 }
 
-// LiteralExpr struct and String()
+func (f *File) String() string {
+	lines := []string{}
+	for _, d := range f.Declarations {
+		lines = append(lines, d.String())
+	}
+	return strings.Join(lines, "\n")
+}
+
+// ImportDecl represents `import "path";`
+type ImportDecl struct {
+	NodeInfo
+	Path *LiteralExpr // Should be a STRING literal
+}
+
+func (i *ImportDecl) String() string { return fmt.Sprintf("import %s;", i.Path) }
+
+// OptionsDecl represents `options { ... }` (structure TBD)
+type OptionsDecl struct {
+	NodeInfo
+	Body *BlockStmt // Placeholder for options assignments?
+}
+
+func (o *OptionsDecl) String() string { return "options { ... }" }
+
+// EnumDecl represents `enum Name { Val1, Val2, ... };`
+type EnumDecl struct {
+	NodeInfo
+	Name   *IdentifierExpr   // Enum type name
+	Values []*IdentifierExpr // List of enum value names
+}
+
+func (e *EnumDecl) String() string {
+	vals := []string{}
+	for _, v := range e.Values {
+		vals = append(vals, v.Name)
+	}
+	return fmt.Sprintf("enum %s { %s };", e.Name, strings.Join(vals, ", "))
+}
+
+// --- Component Definition ---
+
+// ComponentDecl represents `component Name { ... }`
+type ComponentDecl struct {
+	NodeInfo
+	Name *IdentifierExpr     // Component type name
+	Body []ComponentBodyItem // ParamDecl, UsesDecl, OperationDef
+}
+
+func (c *ComponentDecl) String() string { return fmt.Sprintf("component %s { ... }", c.Name) }
+
+// ComponentBodyItem marker interface for items allowed in ComponentDecl body.
+type ComponentBodyItem interface {
+	Node
+	componentBodyItemNode()
+}
+
+// TypeName represents primitive types or registered enum identifiers.
+type TypeName struct {
+	NodeInfo
+	Name string // "int", "float", "bool", "string", "duration", or an Enum identifier
+}
+
+func (t *TypeName) String() string { return t.Name }
+
+// ParamDecl represents `param name: TypeName [= defaultExpr];`
+type ParamDecl struct {
+	NodeInfo
+	Name         *IdentifierExpr
+	Type         *TypeName
+	DefaultValue Expr // Optional
+}
+
+func (p *ParamDecl) componentBodyItemNode() {}
+func (p *ParamDecl) String() string {
+	s := fmt.Sprintf("param %s: %s", p.Name, p.Type)
+	if p.DefaultValue != nil {
+		s += fmt.Sprintf(" = %s", p.DefaultValue)
+	}
+	return s + ";"
+}
+
+// UsesDecl represents `uses varName: ComponentType [{ overrides }];`
+type UsesDecl struct {
+	NodeInfo
+	Name          *IdentifierExpr
+	ComponentType *IdentifierExpr // Type name of the dependency
+	// Overrides removed - handled in InstanceDecl
+}
+
+func (u *UsesDecl) componentBodyItemNode() {}
+func (u *UsesDecl) String() string         { return fmt.Sprintf("uses %s: %s;", u.Name, u.ComponentType) }
+
+// OperationDef represents `operation name(params) [: returnType] { body }`
+type OperationDef struct {
+	NodeInfo
+	Name       *IdentifierExpr
+	Parameters []*ParamDecl // Signature parameters (can be empty)
+	ReturnType *TypeName    // Optional return type (primitive or enum)
+	Body       *BlockStmt
+}
+
+func (o *OperationDef) componentBodyItemNode() {}
+func (o *OperationDef) String() string {
+	retType := ""
+	if o.ReturnType != nil {
+		retType = fmt.Sprintf(": %s", o.ReturnType)
+	}
+	return fmt.Sprintf("operation %s(...) %s { ... }", o.Name, retType)
+}
+
+// --- System Definition ---
+
+// SystemDecl represents `system Name { ... }`
+type SystemDecl struct {
+	NodeInfo
+	Name *IdentifierExpr
+	Body []SystemBodyItem // InstanceDecl, AnalyzeDecl, OptionsDecl, LetStmt
+}
+
+func (s *SystemDecl) String() string { return fmt.Sprintf("system %s { ... }", s.Name) }
+
+// SystemBodyItem marker interface for items allowed in SystemDecl body.
+type SystemBodyItem interface {
+	Node
+	systemBodyItemNode()
+}
+
+// InstanceDecl represents `instanceName: ComponentType = { overrides };`
+type InstanceDecl struct {
+	NodeInfo
+	Name          *IdentifierExpr
+	ComponentType *IdentifierExpr
+	Overrides     []*ParamAssignment // Changed from Params
+}
+
+func (i *InstanceDecl) systemBodyItemNode() {}
+func (i *InstanceDecl) String() string {
+	return fmt.Sprintf("instance %s: %s = { ... };", i.Name, i.ComponentType)
+}
+
+// ParamAssignment represents `paramName = valueExpr;` within InstanceDecl overrides
+// Also used for `let var = expr` ? No, let's use LetStmt explicitly.
+// Renamed to InstanceParamAssignment for clarity within InstanceDecl.
+type InstanceParamAssignment struct {
+	NodeInfo
+	Name  *IdentifierExpr
+	Value Expr // Can be LiteralExpr or IdentifierExpr (referencing another instance)
+}
+
+func (p *InstanceParamAssignment) String() string { return fmt.Sprintf("%s = %s;", p.Name, p.Value) }
+
+// AnalyzeDecl represents `analyze name = callExpr expect { ... };`
+type AnalyzeDecl struct {
+	NodeInfo
+	Name         *IdentifierExpr
+	Target       *CallExpr    // Changed from Expr
+	Expectations *ExpectBlock // Optional
+}
+
+func (a *AnalyzeDecl) systemBodyItemNode() {}
+func (a *AnalyzeDecl) String() string {
+	s := fmt.Sprintf("analyze %s = %s", a.Name, a.Target)
+	if a.Expectations != nil {
+		s += " " + a.Expectations.String()
+	}
+	return s + ";"
+}
+
+// ExpectBlock represents `expect { expectStmt* }`
+type ExpectBlock struct {
+	NodeInfo
+	Expects []*ExpectStmt
+}
+
+func (e *ExpectBlock) String() string { return "expect { ... }" }
+
+// ExpectStmt represents `targetMetric operator threshold;` (e.g., `result.P99 < 100ms;`)
+type ExpectStmt struct {
+	NodeInfo
+	Target    *MemberAccessExpr // e.g., result.P99 (requires VM resolution)
+	Operator  string            // e.g., "<", ">=", "=="
+	Threshold Expr
+}
+
+func (e *ExpectStmt) String() string {
+	return fmt.Sprintf("%s %s %s;", e.Target, e.Operator, e.Threshold)
+}
+
+// --- Statements ---
+
+// BlockStmt represents a sequence of statements `{ stmt1; stmt2; ... }`
+type BlockStmt struct {
+	NodeInfo
+	Statements []Stmt
+}
+
+func (b *BlockStmt) stmtNode()      {}
+func (b *BlockStmt) String() string { return "{ ...statements... }" } // Simplified
+
+// LetStmt represents `let var = expr;`
+type LetStmt struct {
+	NodeInfo
+	Variable *IdentifierExpr
+	Value    Expr
+}
+
+func (l *LetStmt) stmtNode()           {}
+func (l *LetStmt) systemBodyItemNode() {} // Allow let at system level
+func (l *LetStmt) String() string      { return fmt.Sprintf("let %s = %s;", l.Variable, l.Value) }
+
+// ExprStmt represents an expression used as a statement (e.g., a call)
+type ExprStmt struct {
+	NodeInfo
+	Expression Expr
+}
+
+func (e *ExprStmt) stmtNode()      {}
+func (e *ExprStmt) String() string { return e.Expression.String() + ";" }
+
+// ReturnStmt represents `return expr;`
+type ReturnStmt struct {
+	NodeInfo
+	ReturnValue Expr // Optional? Can be `return;`? Let's require a value for now.
+}
+
+func (r *ReturnStmt) stmtNode()      {}
+func (r *ReturnStmt) String() string { return fmt.Sprintf("return %s;", r.ReturnValue) }
+
+// IfStmt represents `if cond { ... } else { ... }`
+type IfStmt struct {
+	NodeInfo
+	Condition Expr // Must evaluate to bool outcome
+	Then      *BlockStmt
+	Else      Stmt // Can be another IfStmt or a BlockStmt
+}
+
+func (i *IfStmt) stmtNode()      {}
+func (i *IfStmt) String() string { return fmt.Sprintf("if (%s) { ... } else { ... }", i.Condition) }
+
+// DistributeStmt represents probabilistic control flow
+type DistributeStmt struct {
+	NodeInfo
+	Total       Expr // Optional total probability expression (float outcome)
+	Cases       []*DistributeCase
+	DefaultCase *DefaultCase // Optional
+}
+
+func (d *DistributeStmt) stmtNode()      {}
+func (d *DistributeStmt) String() string { return "distribute { ... }" }
+
+// DistributeCase represents `probExpr => { block }`
+type DistributeCase struct {
+	NodeInfo
+	Probability Expr // Must evaluate to float outcome
+	Body        *BlockStmt
+}
+
+func (d *DistributeCase) String() string { return fmt.Sprintf("%s => { ... }", d.Probability) }
+
+// DefaultCase represents `default => { block }`
+type DefaultCase struct {
+	NodeInfo
+	Body *BlockStmt
+}
+
+func (d *DefaultCase) String() string { return "default => { ... }" }
+
+// DelayStmt represents `delay durationExpr;`
+type DelayStmt struct {
+	NodeInfo
+	Duration Expr // Must evaluate to Duration outcome
+}
+
+func (d *DelayStmt) stmtNode()      {}
+func (d *DelayStmt) String() string { return fmt.Sprintf("delay %s;", d.Duration) }
+
+// RepeatStmt represents `repeat(countExpr, Mode) { body }`
+type RepeatStmt struct {
+	NodeInfo
+	Count Expr // Must evaluate to int outcome
+	Mode  ExecutionMode
+	Body  *BlockStmt
+}
+
+func (r *RepeatStmt) stmtNode()      {}
+func (r *RepeatStmt) String() string { return fmt.Sprintf("repeat(%s, %s) { ... }", r.Count, r.Mode) }
+
+// ExecutionMode determines sequential or parallel execution.
+type ExecutionMode string // Use string for simplicity
+
+const (
+	Sequential ExecutionMode = "Sequential"
+	Parallel   ExecutionMode = "Parallel"
+)
+
+// ParallelStmt represents `parallel { stmt* }`
+type ParallelStmt struct {
+	NodeInfo
+	Body *BlockStmt
+}
+
+func (p *ParallelStmt) stmtNode()      {}
+func (p *ParallelStmt) String() string { return "parallel { ... }" }
+
+// LogStmt represents `log "message", expr1, expr2;`
+type LogStmt struct {
+	NodeInfo
+	Args []Expr // First arg often StringLiteral, others are values to log
+}
+
+func (l *LogStmt) stmtNode()      {}
+func (l *LogStmt) String() string { return "log ... ;" }
+
+// --- Expressions ---
+
+// BinaryExpr represents `left operator right`
+type BinaryExpr struct {
+	NodeInfo
+	Left     Expr
+	Operator string // "||", "&&", "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "%"
+	Right    Expr
+}
+
+func (b *BinaryExpr) exprNode() {}
+func (b *BinaryExpr) String() string {
+	// Basic, doesn't handle precedence for parentheses
+	return fmt.Sprintf("(%s %s %s)", b.Left, b.Operator, b.Right)
+}
+
+// UnaryExpr represents `operator operand`
+type UnaryExpr struct {
+	NodeInfo
+	Operator string // "!", "-"
+	Right    Expr
+}
+
+func (u *UnaryExpr) exprNode()      {}
+func (u *UnaryExpr) String() string { return fmt.Sprintf("(%s%s)", u.Operator, u.Right) }
+
+// LiteralExpr represents literal values
 type LiteralExpr struct {
 	NodeInfo
-	Kind, Value string
+	Kind  string // "INT", "FLOAT", "STRING", "BOOL", "DURATION"
+	Value string // Raw string value from source
+	// Duration specific fields could be added if needed after parsing
+	// DurationUnit string
+	// NumericValue float64
 }
 
 func (l *LiteralExpr) exprNode() {}
 func (l *LiteralExpr) String() string {
 	if l.Kind == "STRING" {
-		return fmt.Sprintf(`"%s"`, l.Value)
+		// Use strconv.Quote for proper escaping if Value contains raw string content
+		return strconv.Quote(l.Value)
+	}
+	if l.Kind == "DURATION" {
+		// Assuming Value includes the unit, e.g., "10ms"
+		return l.Value
 	}
 	return l.Value
 }
 
-// IdentifierExpr struct and String()
+// IdentifierExpr represents variable or function names
 type IdentifierExpr struct {
 	NodeInfo
 	Name string
 }
 
-func (i *IdentifierExpr) exprNode()      {}
-func (i *IdentifierExpr) String() string { return i.Name }
+func (i *IdentifierExpr) exprNode()           {}
+func (i *IdentifierExpr) systemBodyItemNode() {} // Allow bare identifier? Maybe not needed.
+func (i *IdentifierExpr) String() string      { return i.Name }
 
-// MemberAccessExpr struct and String()
+// MemberAccessExpr represents `receiver.member` (accessing parameters/fields)
 type MemberAccessExpr struct {
 	NodeInfo
-	Receiver Expr
-	Member   string
+	Receiver Expr // The object/instance being accessed
+	Member   *IdentifierExpr
 }
 
 func (m *MemberAccessExpr) exprNode()      {}
 func (m *MemberAccessExpr) String() string { return fmt.Sprintf("%s.%s", m.Receiver, m.Member) }
 
-// CallExpr struct and String()
+// CallExpr represents `function(arg1, arg2, ...)` (user funcs, component methods, built-ins)
 type CallExpr struct {
 	NodeInfo
-	Function Expr
-	Args     []Expr
+	Function Expr   // Typically IdentifierExpr or MemberAccessExpr
+	Args     []Expr // Argument expressions
 }
 
 func (c *CallExpr) exprNode() {}
-func (c *CallExpr) String() string { /* ... implementation ... */
+func (c *CallExpr) String() string {
 	argsStr := []string{}
 	for _, arg := range c.Args {
 		argsStr = append(argsStr, arg.String())
@@ -179,153 +547,7 @@ func (f *FanoutExpr) String() string {
 	return fmt.Sprintf("fanout(%s, %s, %s)", f.CountDist, f.OpExpr, f.Mode)
 }
 
-type ExecutionMode int
-
-const (
-	Sequential ExecutionMode = iota
-	Parallel
-)
-
-func (e ExecutionMode) String() string {
-	if e == Parallel {
-		return "Parallel"
-	}
-	return "Sequential"
-}
-
 // --- Statement Nodes ---
-
-// Stmt interface
-type Stmt interface {
-	Node
-	stmtNode()
-}
-
-// OperationDef represents the definition of a component operation (signature + body)
-// Note: Signature parsing might happen earlier, this focuses on the body.
-// We might just need a BlockStmt for the body itself. Let's use BlockStmt.
-
-// BlockStmt represents a sequence of statements { stmt1; stmt2; ... }
-type BlockStmt struct {
-	NodeInfo
-	Statements []Stmt
-}
-
-func (b *BlockStmt) exprNode()      {}
-func (b *BlockStmt) stmtNode()      {}
-func (b *BlockStmt) String() string { return "{ ...statements... }" } // Simplified
-
-// AssignmentStmt represents var = expr
-type AssignmentStmt struct {
-	NodeInfo
-	Variable *IdentifierExpr // The variable being assigned to
-	Value    Expr            // The expression evaluating to the value (an Outcome)
-}
-
-func (a *AssignmentStmt) stmtNode()      {}
-func (a *AssignmentStmt) String() string { return fmt.Sprintf("%s = %s", a.Variable, a.Value) }
-
-// ReturnStmt represents return expr
-type ReturnStmt struct {
-	NodeInfo
-	ReturnValue Expr // The expression evaluating to the return value (an Outcome)
-}
-
-func (r *ReturnStmt) stmtNode()      {}
-func (r *ReturnStmt) String() string { return fmt.Sprintf("return %s", r.ReturnValue) }
-
-// ExprStmt allows an expression to be used as a statement (e.g., a function call for side effects)
-// In our case, it's primarily for executing an operation whose outcome becomes the implicit next step.
-type ExprStmt struct {
-	NodeInfo
-	Expression Expr
-}
-
-func (e *ExprStmt) stmtNode()      {}
-func (e *ExprStmt) String() string { return e.Expression.String() }
-
-// IfStmt represents if (condition) { then_block } else { else_block }
-type IfStmt struct {
-	NodeInfo
-	Condition Expr
-	Then      *BlockStmt // Then Branch
-	Else      *BlockStmt // Else Branch (Optional, can be nil)
-}
-
-func (i *IfStmt) stmtNode()      {}
-func (i *IfStmt) String() string { return fmt.Sprintf("if (%s) { ... } else { ... }", i.Condition) }
-
-// --- Top Level Declaration Nodes ---
-
-// File represents the top-level node of a parsed DSL file.
-type File struct {
-	NodeInfo
-	Declarations []Node // Can contain ComponentDecl, SystemDecl, OptionsDecl etc.
-}
-
-func (f *File) String() string { return "File{...declarations...}" }
-
-// ComponentDecl represents a component definition block.
-type ComponentDecl struct {
-	NodeInfo
-	Name string
-	Body []Node // Contains ParamDecl, UsesDecl, OperationDef etc.
-}
-
-func (c *ComponentDecl) String() string { return fmt.Sprintf("component %q { ... }", c.Name) }
-
-// ParamDecl represents a parameter definition within a component.
-type ParamDecl struct {
-	NodeInfo
-	Name         string
-	Type         string // e.g., "int", "string", "duration", "float"
-	DefaultValue Expr   // Optional default value expression
-}
-
-func (p *ParamDecl) String() string { return fmt.Sprintf("param %s: %s", p.Name, p.Type) }
-
-// UsesDecl represents a dependency declaration within a component.
-type UsesDecl struct {
-	NodeInfo
-	Name          string
-	ComponentType string // The type of the component being used
-}
-
-func (u *UsesDecl) String() string { return fmt.Sprintf("uses %s: %s", u.Name, u.ComponentType) }
-
-// OperationDef represents an operation definition within a component.
-type OperationDef struct {
-	NodeInfo
-	Name       string
-	Parameters []*ParamDecl // Signature parameters
-	ReturnType string       // e.g., "AccessResult", "Duration", "bool"
-	Body       *BlockStmt   // The actual logic block
-}
-
-func (o *OperationDef) String() string {
-	return fmt.Sprintf("operation %s(...) : %s { ... }", o.Name, o.ReturnType)
-}
-
-// SystemDecl represents a system definition block.
-type SystemDecl struct {
-	NodeInfo
-	Name string
-	Body []Node // Contains InstanceDecl, AnalyzeDecl etc.
-}
-
-func (s *SystemDecl) String() string { return fmt.Sprintf("system %q { ... }", s.Name) }
-
-// InstanceDecl represents a component instance declaration within a system.
-type InstanceDecl struct {
-	NodeInfo
-	Name          string
-	ComponentType string             // Name of the component definition (built-in or user-defined)
-	Params        []*ParamAssignment // Parameter overrides for this instance
-}
-
-func (i *InstanceDecl) String() string {
-	return fmt.Sprintf("instance %s: %s = { ... }", i.Name, i.ComponentType)
-}
 
 // ParamAssignment represents setting a parameter value in an InstanceDecl.
 type ParamAssignment struct {
@@ -335,24 +557,6 @@ type ParamAssignment struct {
 }
 
 func (p *ParamAssignment) String() string { return fmt.Sprintf("%s = %s", p.Name, p.Value) }
-
-// AnalyzeDecl represents an analysis target within a system.
-type AnalyzeDecl struct {
-	NodeInfo
-	Name   string
-	Target Expr // The expression (usually a method call) to evaluate and analyze
-	// TODO: Add 'Expect' clauses later
-}
-
-func (a *AnalyzeDecl) String() string { return fmt.Sprintf("analyze %s = %s", a.Name, a.Target) }
-
-// OptionsDecl represents an options block (syntax placeholder)
-type OptionsDecl struct {
-	NodeInfo
-	// Define fields for options later
-}
-
-func (o *OptionsDecl) String() string { return "options { ... }" }
 
 // DistributeExpr represents the probabilistic choice expression/statement
 type DistributeExpr struct {
@@ -366,21 +570,3 @@ type DistributeExpr struct {
 func (d *DistributeExpr) exprNode()      {} // Can be expression
 func (d *DistributeExpr) stmtNode()      {} // Can be statement
 func (d *DistributeExpr) String() string { return "distribute {...}" }
-
-// DistributeCase represents one branch in a distribute block
-type DistributeCase struct {
-	NodeInfo
-	Probability Expr
-	Block       *BlockStmt
-}
-
-func (dc *DistributeCase) String() string { return fmt.Sprintf("%s => { ... }", dc.Probability) }
-
-// DelayStmt represents adding explicit latency
-type DelayStmt struct {
-	NodeInfo
-	Duration Expr // Expression evaluating to Outcomes[Duration]
-}
-
-func (d *DelayStmt) stmtNode()      {}
-func (d *DelayStmt) String() string { return fmt.Sprintf("delay %s", d.Duration) }

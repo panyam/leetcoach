@@ -2,35 +2,30 @@
 
 **Purpose:**
 
-This package contains example system models built using the SDL library. These examples demonstrate how to use the core primitives and components **via the Go API** to model real-world scenarios and analyze their performance. They serve as integration tests and usage guides for the library's Go interface.
+This package contains example system models built using the SDL library's **Go API**. These examples demonstrate how to use the `sdl/core` primitives and `sdl/components` models directly in Go code to model scenarios and analyze performance. They serve as integration tests and usage guides for the library's Go interface.
 
 **Key Examples:**
 
 1.  **`bitly/`:**
-    *   Models a simplified URL shortening service like Bitly.
-    *   Components: `IDGenerator`, `Cache` (`components.Cache`), `DatabaseComponent` (wraps `components.HashIndex`), `BitlyService` (orchestrator).
-    *   Demonstrates composing cache reads/misses with database operations (`Redirect` operation).
-    *   Demonstrates simple sequential operations (`ShortenURL` operation).
-    *   Uses `core.Analyze` for testing performance against expectations.
+    *   Models a simplified URL shortening service.
+    *   Uses `IDGenerator`, `components.Cache`, `components.HashIndex` (via `DatabaseComponent`), `BitlyService`.
+    *   Demonstrates composing cache/DB operations via Go calls.
+    *   Uses `core.Analyze` for testing.
 
 2.  **`gpucaller/`:**
-    *   Models an application server making inference requests to a pool of GPUs, including batching.
-    *   Components: `AppServer`, `Batcher` (`components.Batcher`), `GpuBatchProcessor` (implements `BatchProcessor` interface), stateless `ResourcePool` (`components.ResourcePool`).
-    *   Defines a custom `gpuwork.go` profile for the batch processing time.
-    *   Demonstrates using the stateless `ResourcePool` based on configured rates (`lambda`, `Ts`).
-    *   Demonstrates using the `Batcher` component.
-    *   Includes tests (`gpucaller_test.go`) that perform parameter sweeping (varying GPU pool size and QPS) using `core.Analyze` to evaluate SLOs under different loads.
+    *   Models an AppServer -> GPU pool interaction with batching.
+    *   Uses `components.Batcher`, `components.ResourcePool` (stateless M/M/c), custom `GpuBatchProcessor`, `AppServer`.
+    *   Includes parameter sweeping tests using `core.Analyze`.
 
 3.  **`notifier/`:**
-    *   Models a notification system with asynchronous fan-out.
-    *   Components: `NotifierService`, `MessageStore` (using `HashIndex`), `InboxStore` (using `LSMTree`), `AsyncProcessor`, CDC delay simulation.
-    *   Highlights the challenge of modeling variable fan-out (message delivery to N recipients). The `AsyncProcessor` currently uses a manual expansion/approximation.
-    *   Demonstrates combining synchronous (`SendMessage`) and asynchronous (CDC delay + `ProcessMessage`) paths for end-to-end analysis.
+    *   Models a notification fan-out system (synchronous save + asynchronous delivery).
+    *   Uses `components.HashIndex`, `components.LSMTree`, custom stores (`MessageStore`, `InboxStore`), `AsyncProcessor`, CDC delay simulation.
+    *   Highlights fan-out modeling challenges (currently uses approximation).
 
 **Current Status:**
 
-*   Provides concrete usage examples for the **Go API** of the SDL library.
-*   Demonstrates modeling different system patterns (caching, database interaction, resource pooling, batching, basic async flows).
-*   Tests consistently use `core.Analyze` for verification against performance expectations.
-*   These examples serve as valuable test cases for the `core` and `components` packages.
-*   They could potentially be rewritten using the DSL once the parser and interpreter are complete, serving as target use cases for the DSL implementation.
+*   Provides concrete usage examples for the **Go API**.
+*   Tests use `core.Analyze` for verification.
+*   Serves as integration tests for `core` and `components`.
+*   **Not yet updated** to reflect potential API changes needed for Model V4 dual-track returns from component methods (if direct Go calls are modified instead of using VM wrappers).
+*   Could be rewritten using the DSL once the parser and VM are functional.

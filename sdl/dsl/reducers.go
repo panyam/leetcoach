@@ -68,3 +68,68 @@ func (v *VM) registerDefaultReducers() {
 
 	// Add more combinations as needed (e.g., involving RangedResult)
 }
+
+// reduceStateIfNeeded applies trimming if the state exceeds limits.
+// Checks latency and known value types (AccessResult, RangedResult).
+func (v *VM) reduceStateIfNeeded(state *VarState) (*VarState, error) {
+	if state == nil {
+		return nil, nil
+	}
+	reductionApplied := false
+	newState := &VarState{ // Start with original references
+		ValueOutcome:   state.ValueOutcome,
+		LatencyOutcome: state.LatencyOutcome,
+	}
+	maxLen := v.maxOutcomeLen // Use configured max length
+
+	// --- Reduce Latency Track ---
+	if latOutcome, ok := state.LatencyOutcome.(*core.Outcomes[core.Duration]); ok && latOutcome != nil {
+		if latOutcome.Len() > maxLen {
+			// *** Use the configured reducer ***
+			if v.durationReducer == nil {
+				// Fallback or error if not set? Should be set by NewVM.
+				fmt.Printf("Warning: VM durationReducer not set, defaulting to Adaptive.\n")
+				newState.LatencyOutcome = core.ReduceDurationsAdaptive(latOutcome, maxLen)
+			} else {
+				newState.LatencyOutcome = v.durationReducer(latOutcome, maxLen)
+			}
+			reductionApplied = true
+			// fmt.Printf("DEBUG: Reducing latency track (len %d > %d) using %T\n",
+			//      latOutcome.Len(), maxLen, v.durationReducer) // Log which reducer was used
+		}
+	}
+
+	// --- Reduce Value Track (for types that support it) ---
+	triggerLen := maxLen + 50 // Use a higher trigger length for reduction
+	switch valOutcome := state.ValueOutcome.(type) {
+	case *core.Outcomes[core.AccessResult]:
+		if valOutcome != nil && valOutcome.Len() > maxLen { // Check length against maxLen directly
+			// fmt.Printf("DEBUG: Reducing AccessResult value track (len %d > %d)\n", valOutcome.Len(), maxLen) // Debug
+			trimmerFuncGen := core.TrimToSize(triggerLen, maxLen) // TrimToSize includes merge+interpolate/anchor
+			successes, failures := valOutcome.Split(core.AccessResult.IsSuccess)
+			trimmedSuccesses := trimmerFuncGen(successes)
+			trimmedFailures := trimmerFuncGen(failures)
+			tempOutcome := &core.Outcomes[core.AccessResult]{}
+			finalTrimmedVal := tempOutcome.Append(trimmedSuccesses, trimmedFailures)
+			newState.ValueOutcome = finalTrimmedVal
+			reductionApplied = true
+		}
+	case *core.Outcomes[core.RangedResult]:
+		if valOutcome != nil && valOutcome.Len() > maxLen { // Check length against maxLen
+			// fmt.Printf("DEBUG: Reducing RangedResult value track (len %d > %d)\n", valOutcome.Len(), maxLen) // Debug
+			trimmerFuncGen := core.TrimToSizeRanged(triggerLen, maxLen, 0.1) // TrimToSizeRanged includes merge+interpolate
+			successes, failures := valOutcome.Split(core.RangedResult.IsSuccess)
+			trimmedSuccesses := trimmerFuncGen(successes)
+			trimmedFailures := trimmerFuncGen(failures)
+			tempOutcome := &core.Outcomes[core.RangedResult]{}
+			finalTrimmedVal := tempOutcome.Append(trimmedSuccesses, trimmedFailures)
+			newState.ValueOutcome = finalTrimmedVal
+			reductionApplied = true
+		}
+		// Add other reducible types if needed
+	}
+
+	_ = reductionApplied // Keep variable, might be useful later
+
+	return newState, nil
+}

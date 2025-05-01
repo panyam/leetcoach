@@ -53,10 +53,10 @@ func litInt(v int) Expr    { return &LiteralExpr{Kind: "INT", Value: strconv.Ito
 func litFloat(v float64) Expr {
 	return &LiteralExpr{Kind: "FLOAT", Value: strconv.FormatFloat(v, 'f', -1, 64)}
 }
-func litBool(v bool) Expr { return &LiteralExpr{Kind: "BOOL", Value: strconv.FormatBool(v)} }
-func ident(n string) Expr { return &IdentifierExpr{Name: n} }
+func litBool(v bool) Expr            { return &LiteralExpr{Kind: "BOOL", Value: strconv.FormatBool(v)} }
+func ident(n string) *IdentifierExpr { return &IdentifierExpr{Name: n} }
 func member(r Expr, m string) Expr {
-	return &MemberAccessExpr{Receiver: r, Member: &IdentifierExpr{Name: m}}
+	return &MemberAccessExpr{Receiver: r, Member: ident(m)}
 }
 func call(f Expr, args ...Expr) Expr { return &CallExpr{Function: f, Args: args} }
 func and(l, r Expr) Expr             { return &AndExpr{Left: l, Right: r} }

@@ -436,48 +436,48 @@ func (c *Compiler) compileDelayStmt(stmt *DelayStmt) error {
 // compileIfStmt compiles Condition, OpJumpIfFalsePop, Then block, OpJump (over else), Else block.
 func (c *Compiler) compileIfStmt(stmt *IfStmt) error {
 	line := stmt.Pos()
-	// 1. Compile Condition
+	// 1. Compile Condition - leaves condition VarState on stack
 	if err := c.compileNode(stmt.Condition); err != nil {
 		return err
 	}
 
-	// 2. Emit JumpIfFalsePop with placeholder offset for 'else'
-	jumpToElse := c.emitJump(OpJumpIfFalsePop, line) // Returns index of jump instr
-
-	// 3. Compile Then block
-	// OpJumpIfFalsePop pops the condition value implicitly.
-	// The result of the Then block will be left on the stack.
-	if err := c.compileNode(stmt.Then); err != nil {
-		return err
+	// 2. Compile Then block into a *separate, temporary* chunk
+	thenCompiler := NewCompiler() // Create a new compiler for the sub-chunk
+	thenChunk, err := thenCompiler.Compile(stmt.Then)
+	if err != nil {
+		return fmt.Errorf("failed to compile 'then' block: %w", err)
 	}
+	// Add the compiled 'then' chunk as a constant
+	thenChunkIndex := c.chunk.AddConstant(thenChunk)
 
-	// 4. Emit Jump with placeholder offset to skip 'else'
-	jumpToEnd := c.emitJump(OpJump, stmt.Then.End()) // Jump after then block
-
-	// 5. Patch the jump-to-else offset
-	elseTargetOffset := len(c.chunk.Instructions) - (jumpToElse + 1) // Offset from *next* instruction
-	c.patchJump(jumpToElse, elseTargetOffset)
-
-	// 6. Compile Else block (if exists)
+	// 3. Compile Else block into a *separate, temporary* chunk (if exists)
+	elseChunkIndex := -1 // Sentinel for no else block
 	if stmt.Else != nil {
-		// If we reached here (condition was false), the stack should just contain
-		// the state *before* the condition was evaluated.
-		// The 'else' block execution will combine with that implicit state.
-		// The result of the Else block will replace the pre-condition state on the stack.
-		if err := c.compileNode(stmt.Else); err != nil {
-			return err
+		elseCompiler := NewCompiler()
+		elseChunk, err := elseCompiler.Compile(stmt.Else)
+		if err != nil {
+			return fmt.Errorf("failed to compile 'else' block: %w", err)
 		}
+		elseChunkIndex = c.chunk.AddConstant(elseChunk)
 	} else {
-		// If no 'else' block, what should be the result if condition was false?
-		// Push the identity state? Or just leave stack as it was after condition pop?
-		// Let's push identity for now. VM side needs to handle this case in `combine`.
-		c.emitConstant(createIdentityState(), stmt.End())
+		// Handle no 'else'. Maybe add a special constant or rely on index -1?
+		// For simplicity, add a constant representing an empty chunk/identity op?
+		// Or HandlerIf checks operand2 < 0. Let's use index < 0.
 	}
 
-	// 7. Patch the jump-to-end offset
-	endTargetOffset := len(c.chunk.Instructions) - (jumpToEnd + 1)
-	c.patchJump(jumpToEnd, endTargetOffset)
-	// The final result (either from Then or Else/Identity) is left on the stack.
+	// 4. Emit constant indices for the compiled blocks
+	// HandlerIf needs to know which constants hold the compiled blocks.
+	// We push them *before* calling the handler.
+	// Order: Condition (already on stack), ThenChunkIndex, ElseChunkIndex
+	c.emitOpCode(OpPushConst, thenChunkIndex, line)
+	c.emitOpCode(OpPushConst, elseChunkIndex, line) // Use -1 if no else
+
+	// 5. Emit OpCallFunc(HandlerIf)
+	// The handler will:
+	// - Pop ElseChunkIndex constant, ThenChunkIndex constant, Condition State.
+	// - Perform splitting, execute chunks recursively, combine, push result.
+	c.emitOpCode(OpCallFunc, HandlerIf, line)
+
 	return nil
 }
 

@@ -525,8 +525,60 @@ func (v *VM) ExecuteChunk(chunk *Chunk) (*VarState, error) {
 
 		case OpCall:
 			// TODO: Implement function/method calls
-			return nil, v.runtimeError("OpCall not implemented")
+			argCount := instr.Operand
 
+			// 1. Peek arguments (starting from top)
+			if v.sp < argCount+1 { // Need args + function object
+				return nil, v.runtimeError("stack underflow for OpCall (args=%d, sp=%d)", argCount, v.sp)
+			}
+			var err error
+			args := make([]*VarState, argCount)
+			for i := 0; i < argCount; i++ {
+				// Peek arguments (top is last arg)
+				args[argCount-1-i], err = v.peek(i)
+				if err != nil {
+					return nil, err
+				} // Should not happen if sp check is correct
+			}
+
+			// 2. Peek the function/receiver object below the args
+			_ /*funcOrReceiverState*/, err = v.peek(argCount)
+			if err != nil {
+				return nil, err
+			} // Should not happen
+
+			// 3. Determine what is being called (Internal, Method, User func?)
+			// For now, focus on component method calls where funcOrReceiverState holds the component instance.
+			// Assume the compiler ensures this structure for MemberAccess -> OpCall sequence.
+			// We need the method name. How did the compiler pass it?
+			// Option A: Compiler pushes method name string constant before OpCall.
+			// Option B: OpCall has second operand for method name constant index.
+			// Let's assume Option A for now. Peek for method name *before* func/receiver.
+			/* -- If Method Name is pushed before Receiver --
+			methodNameState, err := v.peek(argCount + 1)
+			if err != nil { return nil, v.runtimeError("stack error getting method name for OpCall") }
+			methodNameOutcome, okM := methodNameState.ValueOutcome.(*core.Outcomes[string])
+			if !okM { return nil, v.runtimeError("expected method name string state for OpCall") }
+			methodName, okDetM := methodNameOutcome.GetValue()
+			if !okDetM { return nil, v.runtimeError("method name must be deterministic for OpCall") }
+			receiverState := funcOrReceiverState // Rename for clarity
+			*/
+
+			// --- SIMPLIFICATION: ---
+			// Let's defer full method call reflection for now.
+			// Treat OpCall as placeholder needing implementation based on how
+			// component methods are exposed/wrapped.
+			// If methods return dual track, VM needs to handle that.
+			// If VM uses wrappers, OpCall might call the wrapper.
+			return nil, v.runtimeError("OpCall execution logic (method calls) not fully implemented")
+
+			// --- Future Steps ---
+			// 4. Resolve receiver object (deterministic check)
+			// 5. Resolve method via reflection
+			// 6. Check/Convert Arguments (deterministic check)
+			// 7. Call Method (handle return value - likely *VarState from wrapper)
+			// 8. Pop args, func/receiver, method name from stack
+			// 9. Push result state
 		case OpReturn:
 			var resultState *VarState
 			var err error

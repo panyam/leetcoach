@@ -260,3 +260,34 @@ func TestExecuteChunk_Locals(t *testing.T) {
 	// Run and check (Expected result: Value=30, Latency=0)
 	// runCodeAndCheckResult(t, chunk, int64(30), 0.0)
 }
+
+// --- OpCall Test ---
+type MockCallable struct {
+	Name string
+}
+
+// Simple method returning a fixed VarState
+func (mc *MockCallable) Echo(arg *VarState) (*VarState, error) {
+	fmt.Printf("MockCallable.Echo called with arg: %s\n", formatConstant(arg))
+	// Return a new state: Value=true, Latency=5ms + arg latency
+	resLat := (&core.Outcomes[core.Duration]{}).Add(1.0, core.Millis(5))
+	combinedLatState, _ := (&VM{}).combineOutcomesAndReduce(arg, &VarState{LatencyOutcome: resLat}) // Use combine helper logic
+
+	return &VarState{
+		ValueOutcome:   (&core.Outcomes[bool]{}).Add(1.0, true),
+		LatencyOutcome: combinedLatState.LatencyOutcome,
+	}, nil
+}
+
+func TestExecuteChunk_OpCall(t *testing.T) {
+	compiler := NewCompiler()
+	// Compile: { let mc = MockCallable{}; mc.Echo(10); } // Ignore 'let' for now
+	node := &CallExpr{
+		Function: &MemberAccessExpr{Receiver: ident("mc"), Member: ident("Echo")}, // Assume 'mc' holds MockCallable
+		Args:     []Expr{litInt(10)},
+	}
+	chunk, _ := compiler.Compile(node)
+	chunk.Disassemble()
+
+	t.Skip("Skipping OpCall test until VM execution logic is implemented")
+}

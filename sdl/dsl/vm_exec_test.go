@@ -209,3 +209,54 @@ func TestExecuteChunk_SimpleSequence(t *testing.T) {
 	// ... assertions ...
 	// runCodeAndCheckResult(t, chunk, true, 30.0)
 }
+
+func TestExecuteChunk_Locals(t *testing.T) {
+	compiler := NewCompiler()
+	// Compile: { let localA = 10; let localB = 20; localA + localB; }
+	// Note: Relies on Add handler being implemented later.
+	block := &BlockStmt{NodeInfo: NodeInfo{StartPos: 1},
+		Statements: []Stmt{
+			&LetStmt{NodeInfo: NodeInfo{StartPos: 1}, // Line 1
+				Variable: &IdentifierExpr{Name: "localA"},
+				Value:    &LiteralExpr{Kind: "INT", Value: "10"},
+			},
+			&LetStmt{NodeInfo: NodeInfo{StartPos: 2}, // Line 2
+				Variable: &IdentifierExpr{Name: "localB"},
+				Value:    &LiteralExpr{Kind: "INT", Value: "20"},
+			},
+			&ExprStmt{NodeInfo: NodeInfo{StartPos: 3}, // Line 3 - result of block
+				Expression: &BinaryExpr{
+					Left:     &IdentifierExpr{Name: "localA"},
+					Operator: "+",
+					Right:    &IdentifierExpr{Name: "localB"},
+				},
+			},
+		},
+	}
+	chunk, err := compiler.Compile(block)
+	if err != nil {
+		t.Fatalf("Compilation failed: %v", err)
+	}
+	chunk.Disassemble()
+
+	// Expected Bytecode (Approximate - indices might vary slightly):
+	// 0000    1 OpPushConst      0 'State{V:10, L:0ms}'  // Value for localA
+	// 0001    1 OpPop                              // Let doesn't leave value (removed this pop implicitly)
+	// 0002    2 OpPushConst      1 'State{V:20, L:0ms}'  // Value for localB
+	// 0003    2 OpPop                              // Let doesn't leave value (removed this pop implicitly)
+	// --- After LetStmt changes: ---
+	// 0000    1 OpPushConst      0 'State{V:10, L:0ms}' // Value for localA (remains on stack as local slot 0)
+	// 0001    2 OpPushConst      1 'State{V:20, L:0ms}' // Value for localB (remains on stack as local slot 1)
+	// 0002    3 OpGetLocal       0                  // Push localA (slot 0)
+	// 0003    3 OpGetLocal       1                  // Push localB (slot 1)
+	// 0004    3 OpCallFunc       0 (HandlerAdd)     // Pop A, Pop B, Add, Push Result
+	// 0005    3 OpPop                              // Pop localB from scope exit
+	// 0006    3 OpPop                              // Pop localA from scope exit
+	// 0007    3 OpReturn                           // Return result of Add
+
+	// Need HandlerAdd implemented
+	t.Skip("Skipping Locals test until Add handler and scope OpPop emission are fully verified")
+
+	// Run and check (Expected result: Value=30, Latency=0)
+	// runCodeAndCheckResult(t, chunk, int64(30), 0.0)
+}

@@ -452,6 +452,31 @@ func (v *VM) ExecuteChunk(chunk *Chunk) (*VarState, error) {
 
 		// --- Add OpGetLocal, OpSetLocal later when function calls/scopes are implemented ---
 
+		case OpGetLocal:
+			slotIndex := instr.Operand // Relative to base of current frame (assume 0 for now)
+			// TODO: Need Frame Pointer (FP) for proper local access: absoluteIndex = FP + slotIndex
+			absoluteIndex := slotIndex // *** TEMPORARY: Assume frame starts at stack index 0 ***
+			if absoluteIndex < 0 || absoluteIndex >= v.sp {
+				return nil, v.runtimeError("invalid local stack index %d (sp=%d)", absoluteIndex, v.sp)
+			}
+			state := v.stack[absoluteIndex] // Access directly
+			if err := v.push(state); err != nil {
+				return nil, err
+			} // Push copy onto top
+
+		case OpSetLocal:
+			slotIndex := instr.Operand
+			// TODO: Need Frame Pointer (FP)
+			absoluteIndex := slotIndex   // *** TEMPORARY ***
+			stateToSet, err := v.peek(0) // Value to set is on top, don't pop
+			if err != nil {
+				return nil, v.runtimeError("stack underflow setting local slot %d: %v", slotIndex, err)
+			}
+			if absoluteIndex < 0 || absoluteIndex >= v.sp { // Ensure slot exists
+				return nil, v.runtimeError("invalid local stack index %d for set (sp=%d)", absoluteIndex, v.sp)
+			}
+			v.stack[absoluteIndex] = stateToSet // Overwrite existing slot
+
 		case OpJump:
 			offset := instr.Operand
 			v.ip += offset // Adjust IP relative to *next* instruction

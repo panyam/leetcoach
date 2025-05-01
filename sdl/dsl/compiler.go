@@ -7,6 +7,18 @@ import (
 	"github.com/panyam/leetcoach/sdl/core"
 )
 
+// Symbol represents a variable in the symbol table.
+type Symbol struct {
+	Name       string
+	ScopeDepth int
+	Index      int // Index in the locals array/stack frame for locals
+}
+
+// SymbolTable manages symbols for a single scope.
+// For simplicity now, we'll use one table and track depth.
+// A stack of tables is needed for proper lexical scoping later.
+type SymbolTable map[string]Symbol // Map name to Symbol info
+
 // --- Handler IDs (Must match VM registration) ---
 const (
 	HandlerAdd = iota // ... (copy all IDs from vm.go) ...
@@ -32,17 +44,25 @@ const (
 
 // Compiler transforms AST into bytecode Chunk.
 type Compiler struct {
-	chunk *Chunk
+	chunk      *Chunk
+	symbols    SymbolTable
+	scopeDepth int
 }
 
 // NewCompiler creates a new compiler instance.
 func NewCompiler() *Compiler {
-	return &Compiler{}
+	return &Compiler{
+		chunk:   &Chunk{},
+		symbols: make(SymbolTable),
+	}
 }
 
 // Compile entry point - adjust final OpReturn logic
 func (c *Compiler) Compile(node Node) (*Chunk, error) {
 	c.chunk = NewChunk(fmt.Sprintf("Script<%T>", node)) // Add basic name
+	// Reset scope for top-level compilation
+	c.symbols = make(SymbolTable)
+	c.scopeDepth = 0
 
 	if err := c.compileNode(node); err != nil {
 		return nil, err
@@ -153,9 +173,17 @@ func (c *Compiler) compileLiteral(expr *LiteralExpr) error {
 
 // compileIdentifier emits OpGetGlobal/OpGetLocal
 func (c *Compiler) compileIdentifier(expr *IdentifierExpr) error {
-	// TODO: Differentiate local/global lookup
-	nameIndex := c.chunk.AddConstant(expr.Name)
-	c.emitOpCode(OpGetGlobal, nameIndex, expr.Pos())
+	symbol, isLocal, found := c.resolveVariable(expr.Name)
+	if !found {
+		// Should resolveVariable always return true for globals? Yes. Error if really not resolvable.
+		return fmt.Errorf("compiler internal error: variable '%s' could not be resolved", expr.Name)
+	}
+
+	if isLocal {
+		c.emitOpCode(OpGetLocal, symbol.Index, expr.Pos())
+	} else { // Global
+		c.emitOpCode(OpGetGlobal, symbol.Index, expr.Pos()) // Index is name constant index
+	}
 	return nil
 }
 
@@ -308,6 +336,8 @@ func (c *Compiler) compileMemberAccessExpr(expr *MemberAccessExpr) error {
 // compileBlockStmt compiles the sequence of statements.
 func (c *Compiler) compileBlockStmt(block *BlockStmt) error {
 	// TODO: Handle scope enter/exit for locals
+	c.beginScope()
+	popsNeeded := 0 // Track locals declared in this scope for popping
 	for i, stmt := range block.Statements {
 		isLast := (i == len(block.Statements)-1)
 		err := c.compileNode(stmt)
@@ -315,13 +345,17 @@ func (c *Compiler) compileBlockStmt(block *BlockStmt) error {
 			return err
 		}
 
+		if _, isLet := stmt.(*LetStmt); isLet && c.scopeDepth > 0 {
+			popsNeeded++ // Track local declaration for scope exit
+		}
+
 		// Pop result of statement if it's not the last one and not a defining statement
 		// Needed because ExprStmt leaves its value on stack, but we only want the *last* one for the block result.
 		// Let/Define statements consume the value themselves. Return exits.
-		// If/Distribute leave their combined result.
+		// If/Distribute leave their combined result on the stack.
 		if !isLast {
 			switch stmt.(type) {
-			case *ExprStmt, *IfStmt, *DistributeStmt: // Add other result-leaving stmts
+			case *ExprStmt, *IfStmt, *DistributeStmt: // TODO: Confirm which stmts leave value for sequence
 				c.emitOpCode(OpPop, 0, stmt.End())
 			case *LetStmt, *ReturnStmt:
 				// These don't leave a value intended for the *next* sequential combination
@@ -330,22 +364,38 @@ func (c *Compiler) compileBlockStmt(block *BlockStmt) error {
 	}
 	// Result of the block is implicitly the result left on the stack by the last statement.
 	// The VM handles the stack. No specific block end opcode needed unless managing scopes.
+	// Emit pops for locals declared in this scope
+	for range popsNeeded {
+		c.emitOpCode(OpPop, 0, block.End()) // Use end line of block
+	}
+	c.endScope()
 	return nil
 }
 
 // compileLetStmt compiles Value, then OpDefineGlobal/OpSetLocal
 func (c *Compiler) compileLetStmt(stmt *LetStmt) error {
 	line := stmt.Pos()
-	// Compile the value expression first
+	varName := stmt.Variable.Name
+
+	// Compile the value expression first; result is on the stack
 	if err := c.compileNode(stmt.Value); err != nil {
 		return err
 	}
-	// Now emit instruction to store the value (which is on top of stack)
-	// TODO: Use OpSetLocal if in local scope
-	nameIndex := c.chunk.AddConstant(stmt.Variable.Name)
-	// Check index limits maybe? Assume ok for now.
-	c.emitOpCode(OpDefineGlobal, nameIndex, line) // Assumes DefineGlobal consumes value from stack
-	// LetStmt itself doesn't leave a value on the stack for sequence
+
+	// Declare the variable in the appropriate scope
+	if err := c.declareVariable(varName); err != nil {
+		return err
+	}
+
+	// Emit the appropriate store instruction
+	if c.scopeDepth == 0 { // Global
+		nameIndex := c.chunk.AddConstant(varName)
+		c.emitOpCode(OpDefineGlobal, nameIndex, line) // DefineGlobal pops value
+	} else { // Local
+		// Local variable is defined by being on the stack at a specific index.
+		// No specific "define" opcode needed, the value IS the variable.
+		// OpSetLocal will be used for *re-assignment* later.
+	}
 	return nil
 }
 
@@ -477,4 +527,77 @@ func (c *Compiler) patchJump(jumpInstructionIndex int, targetOffset int) {
 		panic(fmt.Sprintf("Invalid jump instruction index %d to patch", jumpInstructionIndex))
 	}
 	c.chunk.Instructions[jumpInstructionIndex].Operand = targetOffset
+}
+
+func (c *Compiler) beginScope() {
+	c.scopeDepth++
+}
+
+func (c *Compiler) endScope() {
+	// Remove variables declared in the scope that just ended.
+	// Pop symbols from the table where ScopeDepth == c.scopeDepth.
+	// Also need to emit OpPop instructions if variables are stored on VM stack.
+
+	// Simple version (needs refinement for VM stack cleanup):
+	// Iterate and remove symbols at the current depth.
+	symbolsToKeep := make(SymbolTable)
+	for name, sym := range c.symbols {
+		if sym.ScopeDepth < c.scopeDepth {
+			symbolsToKeep[name] = sym
+		} else {
+			// TODO: Emit OpPop N times if locals are on VM stack
+			// For now, just remove from compiler's table.
+			fmt.Printf("DEBUG: Popping local symbol %s at depth %d\n", name, c.scopeDepth)
+		}
+	}
+	c.symbols = symbolsToKeep // Update table
+	c.scopeDepth--
+}
+
+// declareVariable adds a variable to the current scope's symbol table.
+// For locals, it assigns the next available index.
+func (c *Compiler) declareVariable(name string) error {
+	if c.scopeDepth == 0 { // Global scope
+		// Check if already declared globally (compiler doesn't track globals yet)
+		return nil // Assume globals are handled by OpDefineGlobal lookup at runtime
+	}
+
+	// Check if already declared in the *current* local scope
+	for _, sym := range c.symbols {
+		if sym.ScopeDepth == c.scopeDepth && sym.Name == name {
+			return fmt.Errorf("variable '%s' already declared in this scope", name)
+		}
+	}
+
+	// Add to local symbol table
+	// Assign index based on how many locals *at this scope depth* already exist.
+	localIndexAtThisScope := 0
+	for _, sym := range c.symbols {
+		if sym.ScopeDepth == c.scopeDepth {
+			localIndexAtThisScope++
+		}
+	}
+	symbol := Symbol{Name: name, ScopeDepth: c.scopeDepth, Index: localIndexAtThisScope}
+	c.symbols[name] = symbol
+	fmt.Printf("DEBUG: Declared local %s at depth %d, index %d\n", name, c.scopeDepth, symbol.Index)
+	return nil
+}
+
+// resolveVariable finds a variable, checking local scopes first, then global.
+// Returns the Symbol and true if found, otherwise false.
+// For locals, returns index; for globals, returns constant pool index of name.
+func (c *Compiler) resolveVariable(name string) (symbol Symbol, isLocal bool, found bool) {
+	// Check current and outer local scopes (simplified - checks full table first)
+	// Need proper lexical scoping search later (search current depth, then outer)
+	sym, ok := c.symbols[name]
+	if ok {
+		// Found in local scope tracked by compiler
+		return sym, true, true
+	}
+
+	// If not found locally, assume global (VM will check existence at runtime)
+	// We still need to return a "symbol" representing the global lookup.
+	// Use index = -1 or another indicator for global? Let's return index of name constant.
+	globalNameIndex := c.chunk.AddConstant(name)
+	return Symbol{Name: name, ScopeDepth: 0, Index: globalNameIndex}, false, true // Signal global via isLocal=false
 }

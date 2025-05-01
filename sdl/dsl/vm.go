@@ -4,7 +4,6 @@ package dsl
 import (
 	"errors" // Import errors package
 	"fmt"
-	"reflect"
 
 	"github.com/panyam/leetcoach/sdl/core"
 	// We will need core later, but not for phase 0 structure
@@ -12,29 +11,14 @@ import (
 )
 
 var (
-	ErrStackUnderflow       = errors.New("vm stack underflow")
 	ErrNotImplemented       = errors.New("evaluation for this node type not implemented")
 	ErrNotFound             = errors.New("identifier not found")
 	ErrInternalFuncNotFound = errors.New("internal function not found")
 	ErrReturnSignal         = errors.New("return signal")
+	ErrInvalidOperand       = errors.New("invalid operand type for operation")
+	ErrUnsupportedOperation = errors.New("unsupported operation")
 	// Add more specific errors as needed
 )
-
-// ReturnValue wraps the actual return value when ErrReturnSignal is returned.
-type ReturnValue struct {
-	Value *VarState // Holds the VarState returned
-	Err   error     // Embed the signal error
-}
-
-// Implement the error interface for ReturnValue
-func (rv *ReturnValue) Error() string {
-	return fmt.Sprintf("ReturnSignal(%+v)", rv.Value) // Show VarState content
-}
-
-// Unwrap allows errors.Is(err, ErrReturnSignal) to work
-func (rv *ReturnValue) Unwrap() error {
-	return ErrReturnSignal
-}
 
 // InternalFunction defines the signature for built-in functions callable by the VM.
 // It receives the vm instance (for potential access to env/stack) and evaluated arguments.
@@ -49,31 +33,83 @@ type ReducerKey struct {
 	RightType string
 }
 
+type OperatorFunc func(vm *VM) error // Takes VM to access stack
+
 // VM holds the state for evaluating an AST.
 type VM struct {
-	stack              []*VarState
+	// --- Existing fields ---
+	// stack              []*VarState // Use []*VarState
+	// env                *Environment
+	// internalFuncs      map[string]InternalFunction
+	// maxOutcomeLen      int
+	// sequentialReducers map[ReducerKey]core.ReducerFunc[any, any, any]
+	// durationReducer    core.DurationReducerFunc
+
+	// --- Bytecode Execution Fields ---
+	instructions []Instruction // Current instructions being executed
+	constants    []interface{} // Constant pool for the current chunk
+
+	ip    int         // Instruction Pointer: index into chunk.Code
+	stack []*VarState // Reuse stack, stores *VarState now
+	sp    int         // stack pointer: points *just above* the top element
+
+	// Environment, Internal funcs, Reducers, Configs remain the same
 	env                *Environment
-	internalFuncs      map[string]InternalFunction
+	internalHandlers   map[int]InternalFunction
 	maxOutcomeLen      int
-	sequentialReducers map[ReducerKey]core.ReducerFunc[any, any, any] // Registry for AND
-	durationReducer    core.DurationReducerFunc                       // <-- Add configuration field
+	sequentialReducers map[ReducerKey]core.ReducerFunc[any, any, any]
+	durationReducer    core.DurationReducerFunc
+
+	// Global vars
+	globals map[string]*VarState
+
+	// --- Compiler/Scope Info (Maybe needed later) ---
+	// compiler *Compiler // If needed for nested function compilation
+	// locals []*VarState // Or manage locals via stack offsets
 }
+
+// --- Handler IDs (Must match Compiler emission) ---
+// Using constants directly in VM for now
+const (
+	HandlerAdd = iota
+	HandlerSubtract
+	HandlerMultiply
+	HandlerDivide
+	HandlerNegate
+	HandlerNot
+	HandlerEqual
+	HandlerNotEqual
+	HandlerGreater
+	HandlerGreaterEqual
+	HandlerLess
+	HandlerLessEqual
+	HandlerAnd    // Logical AND
+	HandlerOr     // Logical OR
+	HandlerAndSeq // Sequential Composition
+	HandlerDelay
+	// Complex handlers (will call Go logic)
+	HandlerIf
+	HandlerDistribute
+	// Add more handler IDs as needed
+)
 
 // NewVM creates a new vm instance.
 func NewVM(maxBuckets int) *VM {
 	if maxBuckets <= 0 {
 		maxBuckets = 15 // Default if invalid
 	}
-	interp := &VM{
+	vm := &VM{
 		stack:              make([]*VarState, 0, 100), // Initial capacity
 		env:                NewEnvironment(),          // Start with a global environment
-		internalFuncs:      make(map[string]InternalFunction),
+		internalHandlers:   make(map[int]InternalFunction),
 		sequentialReducers: make(map[ReducerKey]core.ReducerFunc[any, any, any]),
 		maxOutcomeLen:      maxBuckets,
 		durationReducer:    core.ReduceDurationsAdaptive, // <-- Set default reducer
+		ip:                 0,                            // Initialize IP
 	}
-	interp.registerDefaultReducers() // Register standard reducers
-	return interp
+	vm.registerDefaultReducers() // Register standard reducers
+	vm.registerDefaultHandlers() // <-- Register operator functions
+	return vm
 }
 
 // SetDurationReducer allows changing the reduction strategy.
@@ -103,102 +139,11 @@ func (e *Environment) Outer() *Environment {
 
 // --- Internal Function Registry ---
 
-func (v *VM) RegisterInternalFunc(name string, fn InternalFunction) {
-	v.internalFuncs[name] = fn
+func (v *VM) RegisterInternalHandler(name int, fn InternalFunction) {
+	v.internalHandlers[name] = fn
 }
 
 // --- Evaluation (Stub) ---
-
-// Eval is the main entry point for evaluating an AST node.
-// It uses a type switch to delegate to specific eval methods.
-// The result of an evaluation is typically left on the vm's stack.
-// Returns the final result (often the top of the stack after full eval) and any error.
-func (v *VM) Eval(node Node) (*VarState, error) {
-	// fmt.Printf("Eval entry: %T - %s\n", node, node) // Debug entry
-	var resultState *VarState
-	var err error
-	switch n := node.(type) {
-	// We'll add cases here in subsequent phases
-	case *LiteralExpr:
-		resultState, err = v.evalLiteral(n)
-	case *IdentifierExpr:
-		resultState, err = v.evalIdentifier(n)
-	case *InternalCallExpr:
-		resultState, err = v.evalInternalCall(n)
-	case *AndExpr:
-		resultState, err = v.evalAndExpr(n)
-
-	// --- Statement Nodes ---
-	case *BlockStmt:
-		// When Eval is called directly on a BlockStmt (e.g., top level),
-		// there is no initial context from an outer structure like IfStmt.
-		// evalBlockStmt now returns the result directly, doesn't leave on stack implicitly
-		resultState, err = v.evalBlockStmt(n, v.env, nil) // Pass nil context
-	case *AssignmentStmt:
-		resultState, err = v.evalAssignmentStmt(n)
-	case *IfStmt: // <-- Will be implemented now
-		resultState, err = v.evalIfStmt(n)
-	case *ReturnStmt:
-		resultState, err = v.evalReturnStmt(n) // Return signals via special error/value
-	case *MemberAccessExpr:
-		resultState, err = v.evalMemberAccessExpr(n) // <-- Call the actual implementation
-	case *ExprStmt:
-		resultState, err = v.evalExprStmt(n)
-		/*
-			case *CallExpr:
-				resultState, err = v.evalCallExpr(n)
-			case *RepeatExpr:
-				resultState, err = v.evalRepeatExpr(n)
-			// ... other cases ...
-			case *DistributeExpr: // Placeholder for distribute expression
-				// resultState, err = v.evalDistributeExpr(n) // Implement this
-				return nil, fmt.Errorf("%w: DistributeExpr", ErrNotImplemented)
-			case *DelayStmt: // Placeholder for delay statement
-				// resultState, err = v.evalDelayStmt(n) // Implement this
-				return nil, fmt.Errorf("%w: DelayStmt", ErrNotImplemented)
-			// Add placeholders for ParallelExpr, FanoutExpr, etc. if they are in ast.go
-			case *ParallelExpr:
-				return nil, fmt.Errorf("%w: ParallelExpr", ErrNotImplemented)
-			case *FanoutExpr:
-				return nil, fmt.Errorf("%w: FanoutExpr", ErrNotImplemented)
-			case *FilterExpr:
-				return nil, fmt.Errorf("%w: FilterExpr", ErrNotImplemented)
-			case *SwitchExpr:
-				return nil, fmt.Errorf("%w: SwitchExpr", ErrNotImplemented)
-		*/
-	default:
-		return nil, fmt.Errorf("Eval not implemented for node type %T", node)
-	}
-	// Error occurred during evaluation
-	if err != nil {
-		// Check for return signal - propagate it with the resultState extracted above if needed
-		if _, ok := err.(*ReturnValue); ok {
-			// Caller needs to check for this specific error type
-			return resultState, err
-		}
-		// Otherwise, return nil state and the actual error
-		return nil, err
-	}
-
-	// Return the resulting state
-	return resultState, nil
-}
-
-func (v *VM) GetFinalResult() (*VarState, error) {
-	if len(v.stack) == 0 {
-		return nil, fmt.Errorf("cannot get final result: stack is empty")
-	}
-	if len(v.stack) > 1 {
-		// This might be okay if intermediate Eval calls left things? Needs review.
-		// Let's keep the strict check for now.
-		return nil, fmt.Errorf("cannot get final result: stack contains multiple items (%d). Contents: %s", len(v.stack), v.stackString())
-	}
-	state := v.stack[0]
-	if state == nil {
-		panic(fmt.Sprintf("internal error: final stack item is not VarState (%T)", v.stack[0]))
-	}
-	return state, nil
-}
 
 // Add stubs for other eval functions as needed...
 
@@ -390,15 +335,6 @@ func (v *VM) needsReduction(state *VarState) bool {
 
 // --- Reducer Registry ---
 
-func getOutcomeTypeString(outcome any) string {
-	// Use reflection to get a string representation like "*core.Outcomes[core.AccessResult]"
-	// This is somewhat fragile but avoids complex generic type reflection for now.
-	if outcome == nil {
-		return "<nil>"
-	}
-	return reflect.TypeOf(outcome).String()
-}
-
 func (v *VM) RegisterSequentialReducer(leftExample, rightExample any, reducer core.ReducerFunc[any, any, any]) error {
 	if reducer == nil {
 		return fmt.Errorf("reducer function cannot be nil")
@@ -417,122 +353,231 @@ func (v *VM) RegisterSequentialReducer(leftExample, rightExample any, reducer co
 	return nil
 }
 
-// registerDefaultReducers populates the registry with standard combinations.
-func (v *VM) registerDefaultReducers() {
-	// --- AccessResult Reducers ---
-	accRes := &core.Outcomes[core.AccessResult]{} // Example instance
-	dur := &core.Outcomes[core.Duration]{}        // Example instance
-	boolean := &core.Outcomes[bool]{}             // Example instance
-
-	// AccessResult + AccessResult
-	// The registered function needs to handle the any conversion and call core.And
-	_ = v.RegisterSequentialReducer(accRes, accRes, func(a, b any) any {
-		// Type assertion happens here inside the registered func
-		return core.And(a.(*core.Outcomes[core.AccessResult]), b.(*core.Outcomes[core.AccessResult]), core.AndAccessResults)
-	})
-	// AccessResult + Duration
-	_ = v.RegisterSequentialReducer(accRes, dur, func(a, b any) any {
-		reducer := func(vA core.AccessResult, vB core.Duration) core.AccessResult {
-			return core.AccessResult{Success: vA.Success, Latency: vA.Latency + vB}
-		}
-		return core.And(a.(*core.Outcomes[core.AccessResult]), b.(*core.Outcomes[core.Duration]), reducer)
-	})
-	// Duration + AccessResult
-	_ = v.RegisterSequentialReducer(dur, accRes, func(a, b any) any {
-		reducer := func(vA core.Duration, vB core.AccessResult) core.AccessResult {
-			return core.AccessResult{Success: vB.Success, Latency: vA + vB.Latency}
-		}
-		return core.And(a.(*core.Outcomes[core.Duration]), b.(*core.Outcomes[core.AccessResult]), reducer)
-	})
-
-	// --- Duration Reducers ---
-	// Duration + Duration
-	_ = v.RegisterSequentialReducer(dur, dur, func(a, b any) any {
-		latA, okA := a.(*core.Outcomes[core.Duration])
-		latB, okB := b.(*core.Outcomes[core.Duration])
-		if !okA || !okB {
-			// Handle error or panic - this indicates VM called with wrong types
-			panic(fmt.Sprintf("Duration reducer called with incompatible types: %T, %T", a, b))
-		}
-		reducer := func(vA, vB core.Duration) core.Duration { return vA + vB }
-		// Ensure core.And handles nil inputs gracefully or check here
-		if latA == nil {
-			return latB
-		} // If one is nil, return the other
-		if latB == nil {
-			return latA
-		}
-		return core.And(latA, latB, reducer)
-	})
-
-	// --- Bool Reducers ---
-	// Bool + AccessResult
-	_ = v.RegisterSequentialReducer(boolean, accRes, func(a, b any) any {
-		reducer := func(vA bool, vB core.AccessResult) core.AccessResult { return vB } // Bool acts as filter via weights
-		return core.And(a.(*core.Outcomes[bool]), b.(*core.Outcomes[core.AccessResult]), reducer)
-	})
-	// Bool + Bool
-	_ = v.RegisterSequentialReducer(boolean, boolean, func(a, b any) any {
-		reducer := func(vA, vB bool) bool { return vA && vB } // Example: logical AND
-		return core.And(a.(*core.Outcomes[bool]), b.(*core.Outcomes[bool]), reducer)
-	})
-
-	// Add more combinations as needed (e.g., involving RangedResult)
-}
-
 // --- Stack Operations ---
 
-// push adds a VarState to the stack.
-func (v *VM) push(state *VarState) {
+// ReturnValue wraps the actual return value when ErrReturnSignal is returned.
+type ReturnValue struct {
+	Value *VarState // Holds the VarState returned
+	Err   error     // Embed the signal error
+}
+
+// Implement the error interface for ReturnValue
+func (rv *ReturnValue) Error() string {
+	return fmt.Sprintf("ReturnSignal(%+v)", rv.Value) // Show VarState content
+}
+
+// Unwrap allows errors.Is(err, ErrReturnSignal) to work
+func (rv *ReturnValue) Unwrap() error {
+	return ErrReturnSignal
+}
+
+// ExecuteChunk runs the bytecode in the given chunk.
+func (v *VM) ExecuteChunk(chunk *Chunk) (*VarState, error) {
+	if chunk == nil {
+		return nil, fmt.Errorf("cannot execute nil chunk")
+	}
+	if len(chunk.Instructions) == 0 {
+		return createIdentityState(), nil
+	} // Return identity for empty
+
+	v.instructions = chunk.Instructions
+	v.constants = chunk.Constants
+	v.ip = 0
+	v.sp = 0 // Reset stack pointer
+
+	for {
+		if v.ip >= len(v.instructions) {
+			return nil, fmt.Errorf("bytecode execution finished without OpReturn")
+		}
+
+		instr := v.instructions[v.ip]
+		v.ip++ // Advance IP
+
+		// --- Debug Output (Optional) ---
+		//fmt.Printf("[%04d] ", v.ip-1)
+		//chunk.disassembleInstruction(v.ip - 1) // Disassemble current instruction
+		//fmt.Printf("       STACK BEFORE(sp=%d): %s\n", v.sp, v.stackString())
+		// --- End Debug ---
+
+		switch instr.Opcode {
+		case OpPushConst:
+			constIndex := instr.Operand
+			if constIndex < 0 || constIndex >= len(v.constants) {
+				return nil, v.runtimeError("invalid constant index %d", constIndex)
+			}
+			constantValue := v.constants[constIndex]
+			state, ok := constantValue.(*VarState)
+			if !ok {
+				return nil, v.runtimeError("constant pool item %d is not *VarState (%T)", constIndex, constantValue)
+			}
+			if err := v.push(state); err != nil {
+				return nil, err
+			}
+
+		case OpPop:
+			if _, err := v.pop(); err != nil {
+				return nil, err
+			}
+
+		case OpDefineGlobal:
+			nameIndex := instr.Operand
+			if nameIndex < 0 || nameIndex >= len(v.constants) {
+				return nil, v.runtimeError("invalid global name index %d", nameIndex)
+			}
+			name, ok := v.constants[nameIndex].(string)
+			if !ok {
+				return nil, v.runtimeError("global name constant %d is not string", nameIndex)
+			}
+			// Pop the value from the stack to define the global
+			state, err := v.pop()
+			if err != nil {
+				return nil, v.runtimeError("stack underflow defining global '%s': %v", name, err)
+			}
+			v.globals[name] = state
+
+		case OpGetGlobal:
+			nameIndex := instr.Operand
+			if nameIndex < 0 || nameIndex >= len(v.constants) {
+				return nil, v.runtimeError("invalid global name index %d", nameIndex)
+			}
+			name, ok := v.constants[nameIndex].(string)
+			if !ok {
+				return nil, v.runtimeError("global name constant %d is not string", nameIndex)
+			}
+			state, found := v.globals[name]
+			if !found {
+				return nil, v.runtimeError("undefined global variable '%s'", name)
+			}
+			if err := v.push(state); err != nil {
+				return nil, err
+			}
+
+		case OpSetGlobal:
+			nameIndex := instr.Operand
+			if nameIndex < 0 || nameIndex >= len(v.constants) {
+				return nil, v.runtimeError("invalid global name index %d", nameIndex)
+			}
+			name, ok := v.constants[nameIndex].(string)
+			if !ok {
+				return nil, v.runtimeError("global name constant %d is not string", nameIndex)
+			}
+			// Peek value from stack (assignment doesn't consume it from sequence)
+			state, err := v.peek(0)
+			if err != nil {
+				return nil, v.runtimeError("stack underflow setting global '%s': %v", name, err)
+			}
+			if _, found := v.globals[name]; !found {
+				// Allow setting new globals? For now, require definition first.
+				return nil, v.runtimeError("undefined global variable '%s' (cannot set)", name)
+			}
+			v.globals[name] = state
+
+		// --- Add OpGetLocal, OpSetLocal later when function calls/scopes are implemented ---
+
+		case OpJump:
+			offset := instr.Operand
+			v.ip += offset // Adjust IP relative to *next* instruction
+
+		case OpJumpIfFalsePop:
+			offset := instr.Operand
+			conditionState, err := v.pop()
+			if err != nil {
+				return nil, err
+			}
+			isFalsey, err := v.isStateFalsey(conditionState) // Use helper
+			if err != nil {
+				return nil, err
+			} // Error if check fails (e.g., probabilistic bool)
+			if isFalsey {
+				v.ip += offset
+			}
+
+		case OpCallFunc:
+			handlerID := instr.Operand
+			handler, found := v.internalHandlers[handlerID]
+			if !found {
+				return nil, v.runtimeError("invalid internal handler ID %d", handlerID)
+			}
+			// Handler pops args, pushes result(s). It returns error or nil.
+			// Passing nil args - handler uses vm stack directly.
+			// Handlers should return a *VarState representation of their result
+			// *only* if they are signaling a RETURN, otherwise they modify stack
+			// and return (nil, nil) for success.
+			_, err := handler(v, nil)
+			if err != nil {
+				var retVal *ReturnValue
+				if errors.As(err, &retVal) {
+					// Handler signaled a function return. The value is already on stack.
+					// We need to terminate *this* execution loop and return that value.
+					finalState, popErr := v.pop()
+					if popErr != nil {
+						return nil, v.runtimeError("stack error after handler return: %v", popErr)
+					}
+					return finalState, nil // Return the state popped by the handler
+				}
+				// Handler encountered a runtime error
+				return nil, v.runtimeError("handler %d failed: %v", handlerID, err)
+			}
+			// Handler succeeded, stack is modified. Continue loop.
+
+		case OpCall:
+			// TODO: Implement function/method calls
+			return nil, v.runtimeError("OpCall not implemented")
+
+		case OpReturn:
+			var resultState *VarState
+			var err error
+			if v.sp == 0 {
+				resultState = createIdentityState()
+			} else {
+				resultState, err = v.pop()
+				if err != nil {
+					return nil, err
+				}
+			}
+			// fmt.Printf("DEBUG: OpReturn executed, returning state: %s\n", formatConstant(resultState))
+			return resultState, nil // Signal successful completion with result
+
+		case OpIllegal:
+			fallthrough
+		default:
+			return nil, v.runtimeError("unknown or illegal opcode %d (%s)", instr.Opcode, instr.Opcode)
+		}
+
+		// --- Debug Output (Optional) ---
+		//fmt.Printf("       STACK AFTER (sp=%d): %s\n", v.sp, v.stackString())
+		// --- End Debug ---
+	}
+}
+
+// runtimeError formats an error message including the current line number.
+func (v *VM) runtimeError(format string, args ...interface{}) error {
+	line := -1
+	// Use line of the instruction *just executed* (ip was already incremented)
+	instrIndex := v.ip - 1
+	if v.instructions != nil && instrIndex >= 0 && instrIndex < len(v.instructions) {
+		line = v.instructions[instrIndex].Line
+	}
+	msg := fmt.Sprintf(format, args...)
+	return fmt.Errorf("[line %d] runtime error: %s", line, msg)
+}
+
+// isStateFalsey checks if a VarState represents a falsey value (currently bool false).
+// CRITICAL: This is only safe for *deterministic* booleans with OpJumpIfFalsePop.
+// Probabilistic conditions MUST use OpCallFunc -> vm_handle_if.
+func (v *VM) isStateFalsey(state *VarState) (bool, error) {
 	if state == nil {
-		// Avoid pushing nil VarState, maybe push a default state? Or panic?
-		// Let's panic for now, indicates an error in eval logic.
-		panic("attempting to push nil VarState onto VM stack")
-	}
-	v.stack = append(v.stack, state)
-}
+		return true, nil
+	} // Treat nil state as falsey
 
-// pop removes and returns the top VarState from the stack.
-func (v *VM) pop() (*VarState, error) {
-	if len(v.stack) == 0 {
-		return nil, ErrStackUnderflow
-	}
-	lastIndex := len(v.stack) - 1
-	state := v.stack[lastIndex]
-	v.stack = v.stack[:lastIndex]
-	return state, nil
-}
-
-// peek returns the top VarState without removing it.
-func (v *VM) peek() (*VarState, bool) {
-	if len(v.stack) == 0 {
-		return nil, false
-	}
-	state := v.stack[len(v.stack)-1]
-	return state, true
-}
-
-// stackString provides a string representation of the stack for debugging
-func (v *VM) stackString() string {
-	// Modify to show VarState info if useful
-	L := len(v.stack)
-	items := make([]string, L)
-	for idx, state := range v.stack {
-		// Provide a more informative string for VarState
-		valTypeStr := "nil"
-		if state.ValueOutcome != nil {
-			valTypeStr = getOutcomeTypeString(state.ValueOutcome)
+	// Must be a deterministic boolean outcome
+	if boolOutcome, ok := state.ValueOutcome.(*core.Outcomes[bool]); ok {
+		val, isDet := boolOutcome.GetValue()
+		if isDet {
+			return !val, nil // Falsey if deterministic false
 		}
-		latTypeStr := "nil"
-		if state.LatencyOutcome != nil {
-			latTypeStr = getOutcomeTypeString(state.LatencyOutcome)
-		}
-		items[idx] = fmt.Sprintf("State{V:%s, L:%s}", valTypeStr, latTypeStr)
+		return false, v.runtimeError("cannot use probabilistic boolean in simple conditional jump")
 	}
-	return fmt.Sprintf("Stack(len=%d): %v", L, items)
-}
-
-// ClearStack resets the stack.
-func (v *VM) ClearStack() {
-	v.stack = v.stack[:0] // No change needed here
+	// Other types are considered "truthy"
+	return false, nil
 }

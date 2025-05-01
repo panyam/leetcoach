@@ -3,8 +3,7 @@ package dsl
 
 import (
 	"fmt"
-	"strconv" // Need for parseLiteralValue
-
+	// Need for parseLiteralValue
 	// Needed for component constructors & internal funcs
 	"github.com/panyam/leetcoach/sdl/core"
 )
@@ -55,23 +54,6 @@ func CalculateAndStoreMetrics(resultWrapper *AnalysisResultWrapper) {
 	default:
 		resultWrapper.AddMsg("Cannot calculate metrics for outcome type %T", o)
 		resultWrapper.AnalysisPerformed = false // Cannot calculate metrics
-	}
-}
-
-// ParseLiteralValue converts a LiteralExpr value string to a basic Go type.
-func ParseLiteralValue(lit *LiteralExpr) (any, error) {
-	switch lit.Kind {
-	case "STRING":
-		return lit.Value, nil
-	case "INT":
-		return strconv.ParseInt(lit.Value, 10, 64)
-	case "FLOAT":
-		return strconv.ParseFloat(lit.Value, 64)
-	case "BOOL":
-		return strconv.ParseBool(lit.Value)
-	// TODO: case "DURATION":
-	default:
-		return nil, fmt.Errorf("cannot parse literal kind %s yet", lit.Kind)
 	}
 }
 

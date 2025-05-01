@@ -77,19 +77,6 @@ func (v *VM) evalReturnStmt(stmt *ReturnStmt) (*VarState, error) {
 	return resultState, returnSignal // Return state AND signal
 }
 
-// createIdentityState provides a neutral starting point for composition.
-// Value: bool=true (neutral for AND-like success combination)
-// Latency: 0ms
-func createIdentityState() *VarState {
-	// Ensure these helpers return non-nil outcomes
-	val := identityValueOutcome() // Outcomes[bool]{1.0=>true}
-	lat := zeroLatencyOutcome()   // Outcomes[Duration]{1.0=>0}
-	if val == nil || lat == nil {
-		panic("internal error: failed to create identity/zero outcomes")
-	}
-	return &VarState{ValueOutcome: val, LatencyOutcome: lat}
-}
-
 // evalBlockStmt executes a sequence of statements within a given environment.
 // It handles the implicit sequential 'And' composition using the dual tracks.
 // Returns the VarState outcome of the *last* effectively executed statement/expression.

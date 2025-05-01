@@ -53,9 +53,11 @@ func litInt(v int) Expr    { return &LiteralExpr{Kind: "INT", Value: strconv.Ito
 func litFloat(v float64) Expr {
 	return &LiteralExpr{Kind: "FLOAT", Value: strconv.FormatFloat(v, 'f', -1, 64)}
 }
-func litBool(v bool) Expr            { return &LiteralExpr{Kind: "BOOL", Value: strconv.FormatBool(v)} }
-func ident(n string) Expr            { return &IdentifierExpr{Name: n} }
-func member(r Expr, m string) Expr   { return &MemberAccessExpr{Receiver: r, Member: m} }
+func litBool(v bool) Expr { return &LiteralExpr{Kind: "BOOL", Value: strconv.FormatBool(v)} }
+func ident(n string) Expr { return &IdentifierExpr{Name: n} }
+func member(r Expr, m string) Expr {
+	return &MemberAccessExpr{Receiver: r, Member: &IdentifierExpr{Name: m}}
+}
 func call(f Expr, args ...Expr) Expr { return &CallExpr{Function: f, Args: args} }
 func and(l, r Expr) Expr             { return &AndExpr{Left: l, Right: r} }
 func par(l, r Expr) Expr             { return &ParallelExpr{Left: l, Right: r} }
@@ -101,4 +103,21 @@ func meanDurationLatency(o *core.Outcomes[core.Duration]) core.Duration {
 		return 0
 	}
 	return weightedSum / totalWeight
+}
+
+// ParseLiteralValue converts a LiteralExpr value string to a basic Go type.
+func ParseLiteralValue(lit *LiteralExpr) (any, error) {
+	switch lit.Kind {
+	case "STRING":
+		return lit.Value, nil
+	case "INT":
+		return strconv.ParseInt(lit.Value, 10, 64)
+	case "FLOAT":
+		return strconv.ParseFloat(lit.Value, 64)
+	case "BOOL":
+		return strconv.ParseBool(lit.Value)
+	// TODO: case "DURATION":
+	default:
+		return nil, fmt.Errorf("cannot parse literal kind %s yet", lit.Kind)
+	}
 }

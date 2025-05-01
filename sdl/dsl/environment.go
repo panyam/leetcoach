@@ -39,27 +39,6 @@ func (e *Environment) Get(name string) (*VarState, bool) {
 	return obj, ok
 }
 
-// VarState holds the dual-track outcomes for a variable or expression result.
-type VarState struct {
-	ValueOutcome   any // *core.Outcomes[V] (V is discrete type)
-	LatencyOutcome any // *core.Outcomes[core.Duration]
-}
-
-// Add Safe Accessor helpers to VarState to handle nil pointers gracefully
-func (vs *VarState) SafeValueOutcome() any {
-	if vs == nil {
-		return nil
-	}
-	return vs.ValueOutcome
-}
-
-func (vs *VarState) SafeLatencyOutcome() any {
-	if vs == nil {
-		return nil
-	}
-	return vs.LatencyOutcome
-}
-
 // Set defines or updates a VarState in the *current* environment.
 // It takes separate value and latency outcomes and creates/updates the VarState.
 func (e *Environment) Set(name string, valueOutcome any, latencyOutcome any) {

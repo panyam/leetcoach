@@ -7,6 +7,15 @@ import (
 	"github.com/panyam/leetcoach/sdl/core"
 )
 
+// Placeholder map - ideally shared with VM handler registration
+var internalFuncNameMap = map[string]int{
+	"DurationMS": HandlerDurationMS,
+	"GetBool":    HandlerGetBool,
+	"GetAccess":  HandlerGetAccess,
+	// Add other internal function mappings here...
+	// e.g., "GetDiskReadProfile": HandlerGetDiskReadProfile,
+}
+
 // Symbol represents a variable in the symbol table.
 type Symbol struct {
 	Name       string
@@ -39,6 +48,8 @@ const (
 	HandlerDelay
 	HandlerIf
 	HandlerDurationMS // Added Handler ID
+	HandlerGetBool    // Added GetBool
+	HandlerGetAccess
 	HandlerDistribute
 )
 
@@ -288,13 +299,6 @@ func (c *Compiler) compileInternalCallExpr(expr *InternalCallExpr) error {
 	return nil
 }
 
-// Placeholder map - ideally shared with VM handler registration
-var internalFuncNameMap = map[string]int{
-	"DurationMS": HandlerDurationMS,
-	// Add other internal function mappings here...
-	// e.g., "GetDiskReadProfile": HandlerGetDiskReadProfile,
-}
-
 // compileCallExpr compiles Function, Args, then OpCall(ArgCount)
 func (c *Compiler) compileCallExpr(expr *CallExpr) error {
 	line := expr.Pos()
@@ -489,7 +493,7 @@ func (c *Compiler) emitOpCode(op OpCode, operand int, line int) {
 }
 
 // emitConstant adds the value to the constant pool and emits OpPushConst + index.
-func (c *Compiler) emitConstant(value interface{}, line int) {
+func (c *Compiler) emitConstant(value any, line int) {
 	index := c.chunk.AddConstant(value)
 	if index > 65535 { // Example limit for 16-bit operand
 		panic("Constant pool limit (65536) exceeded")

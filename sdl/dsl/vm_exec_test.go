@@ -291,3 +291,79 @@ func TestExecuteChunk_OpCall(t *testing.T) {
 
 	t.Skip("Skipping OpCall test until VM execution logic is implemented")
 }
+
+func TestExecuteChunk_If_SimpleBool(t *testing.T) {
+	compiler := NewCompiler()
+	// AST for:
+	// {
+	//   cond = Internal.GetBool(0.8, DurationMS(1.0), DurationMS(2.0));
+	//   res = 0; // This 'let' is unused in the final result path, remove for test clarity
+	//   if cond {
+	//     Internal.GetAccess(1.0, DurationMS(10.0), DurationMS(0.0)); // Then
+	//   } else {
+	//     Internal.GetAccess(0.0, DurationMS(0.0), DurationMS(5.0));  // Else
+	//   }
+	//   // Implicit return of the if result
+	// }
+	block := &BlockStmt{NodeInfo: NodeInfo{StartPos: 1},
+		Statements: []Stmt{
+			&LetStmt{NodeInfo: NodeInfo{StartPos: 1}, Variable: ident("cond"), Value: internalCall("GetBool", litFloat(0.8),
+				internalCall("DurationMS", litFloat(1.0)), internalCall("DurationMS", litFloat(2.0)))},
+			// &LetStmt{Variable: ident("res").(*IdentifierExpr), Value: litInt(0)}, // Remove unused let
+			&IfStmt{NodeInfo: NodeInfo{StartPos: 2},
+				Condition: ident("cond"), // Use variable holding bool outcome
+				Then: &BlockStmt{NodeInfo: NodeInfo{StartPos: 3}, Statements: []Stmt{
+					// Return value of block is this expression
+					&ExprStmt{NodeInfo: NodeInfo{StartPos: 3}, Expression: internalCall("GetAccess", litFloat(1.0),
+						internalCall("DurationMS", litFloat(10.0)), internalCall("DurationMS", litFloat(0.0)))},
+				}},
+				Else: &BlockStmt{NodeInfo: NodeInfo{StartPos: 5}, Statements: []Stmt{
+					// Return value of block is this expression
+					&ExprStmt{NodeInfo: NodeInfo{StartPos: 5}, Expression: internalCall("GetAccess", litFloat(0.0),
+						internalCall("DurationMS", litFloat(0.0)), internalCall("DurationMS", litFloat(5.0)))},
+				}},
+			},
+			// Implicit Return at end of block
+		},
+	}
+
+	chunk, err := compiler.Compile(block)
+	if err != nil {
+		t.Fatalf("Compilation failed: %v", err)
+	}
+	chunk.Disassemble()
+
+	// Need SplitLatenciesBasedOnValue implemented in core!
+	t.Skip("Skipping If SimpleBool test until core.SplitLatenciesBasedOnValue is verified")
+
+	vm := NewVM(15)
+	// registerMockInternalFuncs(vm) // Ensure GetBool, GetAccess, DurationMS are registered
+
+	finalState, err := vm.ExecuteChunk(chunk)
+	if err != nil {
+		t.Fatalf("VM execution failed: %v", err)
+	}
+
+	// Expected results (as calculated before)
+	// Value Avail = 0.8
+	// Latency Mean = 10.2ms
+	valOutcome, okV := finalState.ValueOutcome.(*core.Outcomes[core.AccessResult])
+	latOutcome, okL := finalState.LatencyOutcome.(*core.Outcomes[core.Duration])
+	if !okV || !okL {
+		t.Fatalf("Final state has wrong types: V=%T, L=%T", finalState.ValueOutcome, finalState.LatencyOutcome)
+	}
+
+	actualAvail := core.Availability(valOutcome)
+	expectedAvail := 0.8
+	if !core.ApproxEq(actualAvail, expectedAvail, 1e-9) {
+		t.Errorf("Expected final Availability %.4f, got %.4f", expectedAvail, actualAvail)
+	}
+
+	actualMeanDur := meanDurationLatency(latOutcome)
+	expectedMeanDur := core.Millis(10.2)
+	if !core.ApproxEq(actualMeanDur, expectedMeanDur, core.Millis(0.01)) {
+		t.Errorf("Expected final Mean Duration %.6fs, got %.6fs", expectedMeanDur, actualMeanDur)
+	}
+	t.Logf("IfStmt Bool Test: Avail=%.4f, MeanDur=%.6f", actualAvail, actualMeanDur)
+
+}

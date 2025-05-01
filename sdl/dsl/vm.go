@@ -33,8 +33,6 @@ type ReducerKey struct {
 	RightType string
 }
 
-type OperatorFunc func(vm *VM) error // Takes VM to access stack
-
 // VM holds the state for evaluating an AST.
 type VM struct {
 	// --- Existing fields ---
@@ -56,6 +54,7 @@ type VM struct {
 	// Environment, Internal funcs, Reducers, Configs remain the same
 	env                *Environment
 	internalHandlers   map[int]InternalFunction
+	internalFuncs      map[string]InternalFunction
 	maxOutcomeLen      int
 	sequentialReducers map[ReducerKey]core.ReducerFunc[any, any, any]
 	durationReducer    core.DurationReducerFunc
@@ -79,14 +78,16 @@ func NewVM(maxBuckets int) *VM {
 		stack:              make([]*VarState, VmStackCapacity),
 		env:                NewEnvironment(), // Start with a global environment
 		internalHandlers:   make(map[int]InternalFunction),
+		internalFuncs:      make(map[string]InternalFunction),
 		sequentialReducers: make(map[ReducerKey]core.ReducerFunc[any, any, any]),
 		maxOutcomeLen:      maxBuckets,
 		durationReducer:    core.ReduceDurationsAdaptive, // <-- Set default reducer
 		ip:                 0,                            // Initialize IP
 		globals:            map[string]*VarState{},
 	}
-	vm.registerDefaultReducers() // Register standard reducers
-	vm.registerDefaultHandlers() // <-- Register operator functions
+	vm.registerDefaultReducers()  // Register standard reducers
+	vm.registerDefaultHandlers()  // <-- Register operator functions
+	vm.registerDefaultInternals() // <-- Register operator functions
 	return vm
 }
 
@@ -119,6 +120,10 @@ func (e *Environment) Outer() *Environment {
 
 func (v *VM) RegisterInternalHandler(name int, fn InternalFunction) {
 	v.internalHandlers[name] = fn
+}
+
+func (v *VM) RegisterInternalFunc(name string, fn InternalFunction) {
+	v.internalFuncs[name] = fn
 }
 
 // --- Evaluation (Stub) ---

@@ -6,6 +6,11 @@ import (
 	"github.com/panyam/leetcoach/sdl/core"
 )
 
+func (v *VM) registerDefaultInternals() {
+	v.RegisterInternalFunc("GetAccess", v.vm_handle_get_access)
+	v.RegisterInternalFunc("GetBool", v.vm_handle_get_bool)
+}
+
 // registerDefaultHandlers - called by NewVM to setup handlers for common ops.
 func (v *VM) registerDefaultHandlers() {
 	// Register stubs for now, pointing to specific handler funcs
@@ -26,6 +31,9 @@ func (v *VM) registerDefaultHandlers() {
 	v.RegisterInternalHandler(HandlerAndSeq, v.vm_handle_and_seq)
 	v.RegisterInternalHandler(HandlerDelay, v.vm_handle_delay)
 	v.RegisterInternalHandler(HandlerIf, v.vm_handle_if)
+	// v.RegisterInternalHandler(HandlerDurationMS, v.vm_handle_durationms)
+	v.RegisterInternalHandler(HandlerGetBool, v.vm_handle_get_bool)
+	v.RegisterInternalHandler(HandlerGetAccess, v.vm_handle_get_access)
 	v.RegisterInternalHandler(HandlerDistribute, v.vm_handle_distribute)
 }
 
@@ -112,6 +120,85 @@ func (v *VM) vm_handle_and_seq(vm *VM, args []*VarState) (*VarState, error) {
 	return nil, nil // Success
 }
 
+func (v *VM) vm_handle_get_access(vm *VM, args []*VarState) (*VarState, error) {
+	// Args: successProb (float Outcome), successLat (Duration Outcome), failLat (Duration Outcome)
+	if len(args) != 3 {
+		return nil, fmt.Errorf("GetAccess needs 3 args")
+	}
+	probState := args[0]
+	latSState := args[1]
+	latFState := args[2]
+	if probState == nil || latSState == nil || latFState == nil {
+		return nil, fmt.Errorf("GetBool args must be VarState")
+	}
+
+	probF, ok := probState.ValueOutcome.(*core.Outcomes[float64]).GetValue()
+	if !ok {
+		return nil, fmt.Errorf("GetAccess prob must be deterministic")
+	}
+	latS, ok := latSState.ValueOutcome.(*core.Outcomes[core.Duration]).GetValue()
+	if !ok {
+		return nil, fmt.Errorf("GetAccess successLat must be deterministic")
+	}
+	latF, ok := latFState.ValueOutcome.(*core.Outcomes[core.Duration]).GetValue()
+	if !ok {
+		return nil, fmt.Errorf("GetAccess failLat must be deterministic")
+	}
+
+	valOutcome := &core.Outcomes[core.AccessResult]{}
+	latOutcome := &core.Outcomes[core.Duration]{}
+	if probF > 1e-9 {
+		ar := core.AccessResult{Success: true, Latency: latS}
+		valOutcome.Add(probF, ar)
+		latOutcome.Add(probF, latS)
+	}
+	if (1.0 - probF) > 1e-9 {
+		ar := core.AccessResult{Success: false, Latency: latF}
+		valOutcome.Add(1.0-probF, ar)
+		latOutcome.Add(1.0-probF, latF)
+	}
+	return &VarState{ValueOutcome: valOutcome, LatencyOutcome: latOutcome}, nil
+}
+
+func (v *VM) vm_handle_get_bool(vm *VM, args []*VarState) (*VarState, error) {
+	// Args: successProb (float Outcome), successLat (Duration Outcome), failLat (Duration Outcome)
+	if len(args) != 3 {
+		return nil, fmt.Errorf("GetBool needs 3 args")
+	}
+	probState := args[0]
+	latSState := args[1]
+	latFState := args[2]
+	if probState == nil || latSState == nil || latFState == nil {
+		return nil, fmt.Errorf("GetBool args must be VarState")
+	}
+
+	// Get deterministic values from argument outcomes
+	probF, ok := probState.ValueOutcome.(*core.Outcomes[float64]).GetValue()
+	if !ok {
+		return nil, fmt.Errorf("GetBool prob must be deterministic")
+	}
+	latS, ok := latSState.ValueOutcome.(*core.Outcomes[core.Duration]).GetValue()
+	if !ok {
+		return nil, fmt.Errorf("GetBool successLat must be deterministic")
+	}
+	latF, ok := latFState.ValueOutcome.(*core.Outcomes[core.Duration]).GetValue()
+	if !ok {
+		return nil, fmt.Errorf("GetBool failLat must be deterministic")
+	}
+
+	valOutcome := &core.Outcomes[bool]{}
+	latOutcome := &core.Outcomes[core.Duration]{}
+	if probF > 1e-9 {
+		valOutcome.Add(probF, true)
+		latOutcome.Add(probF, latS)
+	}
+	if (1.0 - probF) > 1e-9 {
+		valOutcome.Add(1.0-probF, false)
+		latOutcome.Add(1.0-probF, latF)
+	}
+	return &VarState{ValueOutcome: valOutcome, LatencyOutcome: latOutcome}, nil
+}
+
 func (v *VM) vm_handle_delay(vm *VM, args []*VarState) (*VarState, error) {
 	durationState, err := v.pop()
 	if err != nil {
@@ -149,10 +236,13 @@ func (v *VM) vm_handle_delay(vm *VM, args []*VarState) (*VarState, error) {
 }
 
 func (v *VM) vm_handle_if(vm *VM, args []*VarState) (*VarState, error) {
-	// Args might contain jump offsets passed via operands? Or vm looks ahead?
-	// Complex logic delegated to eval_ifstmt.go (needs adapting to bytecode context)
+	// Stack state upon entry (relative to top):
+	// - ElseChunkIndex Constant State (*VarState{Outcomes[int64]})
+	// - ThenChunkIndex Constant State (*VarState{Outcomes[int64]})
+	// - Condition Result State (*VarState{Outcomes[bool]})
+	// - Context State (*VarState) // State *before* condition was evaluated
 
-	// Stack order (from OpCallFunc): ElseChunkIdxConst, ThenChunkIdxConst, ConditionState
+	// 1. Pop Operands and Condition
 	elseChunkIdxState, err := v.pop()
 	if err != nil {
 		return nil, err
@@ -166,113 +256,143 @@ func (v *VM) vm_handle_if(vm *VM, args []*VarState) (*VarState, error) {
 		return nil, err
 	}
 
-	// Get the actual chunk indices from the constants
-	_ /*elseChunkIndex*/, ok := elseChunkIdxState.ValueOutcome.(*core.Outcomes[int64]).GetValue()
-	if !ok {
-		return nil, v.runtimeError("else chunk index must be deterministic int")
-	}
-	_ /*thenChunkIndex*/, ok = thenChunkIdxState.ValueOutcome.(*core.Outcomes[int64]).GetValue()
-	if !ok {
-		return nil, v.runtimeError("then chunk index must be deterministic int")
-	}
-
-	// --- Get Condition Outcome & Predicate ---
-	boolOutcome, ok := conditionState.ValueOutcome.(*core.Outcomes[bool])
-	if !ok {
-		return nil, v.runtimeError("if condition must evaluate to *core.Outcomes[bool], got %T", conditionState.ValueOutcome)
-	}
-	boolPredicate := func(v bool) bool { return v } // Simple predicate for bool outcomes
-
-	// --- Split Current Context (State BEFORE condition was evaluated) ---
-	// PROBLEM: The state *before* the condition is not easily available on the stack.
-	// The standard sequential model combines state.
-	//
-	// REVISED APPROACH for IF Handler:
-	// 1. The stack *before* OpCallFunc(HandlerIf) contains:
-	//    [..., PreConditionState, ConditionResultState, ThenChunkIdxState, ElseChunkIdxState] ?? No, compiler emits condition then indices.
-	//    Stack: [..., ConditionState, ThenChunkIdxState, ElseChunkIdxState]
-	//
-	// 2. We need the state *before* the condition was evaluated. This state should be
-	//    available deeper in the stack (e.g., peek(3) if stack was [PreCond, Cond, ThenIdx, ElseIdx]).
-	//    Let's assume `peek(0)` holds ElseChunkIdx, `peek(1)` ThenChunkIdx, `peek(2)` ConditionState.
-	//    Where is the PreConditionState? The implicit sequence handling consumes it.
-	//
-	// ALTERNATIVE VM DESIGN for IF/DISTRIBUTE:
-	// - Handlers *don't* pop the triggering input (like ConditionState).
-	// - They operate on the stack, potentially pushing intermediate results or contexts.
-	// - They return control to the VM loop, possibly modifying the IP to jump to sub-chunks.
-	// This seems overly complex compared to recursive evaluation.
-	//
-	// Let's stick to recursive execution, but the Go handler needs the context.
-	// HOW? Maybe `OpCallFunc` should implicitly pass the state *below* its direct operands?
-	// Or, the handler *pops* operands, *peeks* at the context below, executes, *pushes* result.
-
-	// --- Let's try peeking ---
-	// Stack: [..., ContextState, ConditionState, ThenChunkIdxState, ElseChunkIdxState] <-- Top
-	// Pop indices first
-	// elseChunkIdxState, err = v.pop(); if err != nil { return nil, err }
-	// thenChunkIdxState, err = v.pop(); if err != nil { return nil, err }
-	// conditionState, err = v.pop(); if err != nil { return nil, err }
-	// Now peek at the context state below
-	contextState, err := v.peek(0) // Peek at what's now the top
+	// 2. Peek at the Context State (state before condition evaluation)
+	//    This holds the latency accumulated *up to* the 'if' statement.
+	contextState, err := v.peek(0) // Context is now top
 	if err != nil {
 		return nil, v.runtimeError("stack underflow retrieving context for 'if'")
 	}
 
-	// --- Split Value Track (Condition's Bool Outcome) ---
-	/*thenValOutcomeAny, elseValOutcomeAny := */
-	boolOutcome.Split(boolPredicate)
+	// 3. Extract Chunk Indices
+	elseChunkIndexVal, ok := elseChunkIdxState.ValueOutcome.(*core.Outcomes[int64]).GetValue()
+	if !ok {
+		return nil, v.runtimeError("else chunk index constant error")
+	}
+	thenChunkIndexVal, ok := thenChunkIdxState.ValueOutcome.(*core.Outcomes[int64]).GetValue()
+	if !ok {
+		return nil, v.runtimeError("then chunk index constant error")
+	}
 
-	// --- Split Latency Track (Context's Latency Outcome) ---
-	// **Requires core.SplitLatenciesBasedOnValue or equivalent**
+	// 4. Extract Condition Bool Outcome
+	boolOutcome, ok := conditionState.ValueOutcome.(*core.Outcomes[bool])
+	if !ok {
+		return nil, v.runtimeError("if condition must evaluate to *core.Outcomes[bool], got %T", conditionState.ValueOutcome)
+	}
+	boolPredicate := func(v bool) bool { return v } // Standard predicate for bool outcomes
+
+	// --- Split the Context Latency based on the Condition Value ---
 	contextLatOutcome, _ := contextState.LatencyOutcome.(*core.Outcomes[core.Duration])
 	if contextLatOutcome == nil {
 		contextLatOutcome = zeroLatencyOutcome()
 	}
 
-	// *** PLACEHOLDER for core function ***
-	_, _ /*thenLatOutcome, elseLatOutcome, */, splitErr := SplitLatenciesBasedOnValue(contextLatOutcome, boolOutcome, boolPredicate)
+	thenContextLat, elseContextLat, splitErr := SplitLatenciesBasedOnValue(contextLatOutcome, boolOutcome, boolPredicate)
 	if splitErr != nil {
 		return nil, v.runtimeError("error splitting context latency for if: %v", splitErr)
 	}
-	// *** END PLACEHOLDER ***
 
-	// Create split contexts (Value comes from split Condition, Latency from split Context)
-	// This seems wrong. The latency *of the condition evaluation* needs to be added too.
-	// TODO: Revisit split logic - needs condition latency + context latency combined first?
-
-	// --- Execute Branches Recursively (Simplified for now) ---
-	// This needs to execute sub-chunks. Pass split context?
-	// For now, placeholder:
-	fmt.Println("Warning: vm_handle_if execution logic is a placeholder.")
-	thenResultState := createIdentityState() // Placeholder
-	elseResultState := createIdentityState() // Placeholder
-
-	// Combine results (placeholder)
-	// Need proper Append logic for VarState or its components
-	combinedLat := (&core.Outcomes[core.Duration]{}).Append(thenResultState.LatencyOutcome.(*core.Outcomes[core.Duration]), elseResultState.LatencyOutcome.(*core.Outcomes[core.Duration]))
-	combinedVal := (&core.Outcomes[bool]{}).Append(thenResultState.ValueOutcome.(*core.Outcomes[bool]), elseResultState.ValueOutcome.(*core.Outcomes[bool])) // Assume bool for now
-
-	// --- Crucial: Replace the context state with the final combined result ---
-	_, err = v.pop() // Pop the original context state
-	if err != nil {
-		return nil, v.runtimeError("stack error popping context state after 'if'")
+	// --- Split the Condition Latency ---
+	// The latency incurred *during* the condition evaluation also needs splitting.
+	conditionLatOutcome, _ := conditionState.LatencyOutcome.(*core.Outcomes[core.Duration])
+	if conditionLatOutcome == nil {
+		conditionLatOutcome = zeroLatencyOutcome()
 	}
 
-	finalState := &VarState{ValueOutcome: combinedVal, LatencyOutcome: combinedLat}
+	thenCondLat, elseCondLat, splitErr := SplitLatenciesBasedOnValue(conditionLatOutcome, boolOutcome, boolPredicate)
+	if splitErr != nil {
+		return nil, v.runtimeError("error splitting condition latency for if: %v", splitErr)
+	}
 
-	// Apply reduction before pushing
-	finalState, err = v.reduceStateIfNeeded(finalState)
+	// 5. Prepare Initial States for Branch Execution
+	// The initial state for a branch includes the split context latency *plus* the split condition latency.
+	// The value outcome for the initial state is determined by the split condition outcome.
+
+	// Combine split context latency and split condition latency for 'then' branch start
+	thenStartLatState, err := v.combineOutcomesAndReduce(&VarState{LatencyOutcome: thenContextLat}, &VarState{LatencyOutcome: thenCondLat})
 	if err != nil {
+		return nil, v.runtimeError("failed combining then branch start latency: %v", err)
+	}
+	// Split value outcome for 'then' branch start
+	thenValOutcome, _ := boolOutcome.Split(boolPredicate) // Split value outcome
+	thenStartState := &VarState{
+		ValueOutcome:   thenValOutcome,
+		LatencyOutcome: thenStartLatState.LatencyOutcome,
+	}
+
+	// Combine split context latency and split condition latency for 'else' branch start
+	elseStartLatState, err := v.combineOutcomesAndReduce(&VarState{LatencyOutcome: elseContextLat}, &VarState{LatencyOutcome: elseCondLat})
+	if err != nil {
+		return nil, v.runtimeError("failed combining else branch start latency: %v", err)
+	}
+	// Split value outcome for 'else' branch start
+	_, elseValOutcome := boolOutcome.Split(boolPredicate)
+	elseStartState := &VarState{
+		ValueOutcome:   elseValOutcome,
+		LatencyOutcome: elseStartLatState.LatencyOutcome,
+	}
+
+	var finalThenResultState *VarState = nil // Initialize result states
+	var finalElseResultState *VarState = nil
+
+	// 6. Execute Then Branch (if it has weight and exists)
+	thenChunk := v.constants[thenChunkIndexVal].(*Chunk)                   // Assumes constant is correct type
+	if thenChunk != nil && outcomeHasWeight(thenStartState.ValueOutcome) { // Check split value weight
+		// Execute sub-chunk recursively. Requires ability to execute specific chunk with context.
+		// Create a temporary VM or context for sub-execution?
+		// Or: Modify vm state, execute, restore state? Risky.
+		// --- Simplest: Execute sub-chunk, starting stack contains ONLY thenStartState ---
+		vm.stack[vm.sp] = thenStartState                           // Replace context state with then start state on stack
+		branchResultState, branchErr := vm.ExecuteChunk(thenChunk) // Execute compiled 'then' block
+		if branchErr != nil {
+			// TODO: Handle potential ReturnValue signal from branch
+			return nil, v.runtimeError("error executing 'then' branch chunk: %v", branchErr)
+		}
+		finalThenResultState = branchResultState // Store the result
+	} else if outcomeHasWeight(thenStartState.ValueOutcome) { // Path has weight but no block
+		finalThenResultState = thenStartState // Result is just the starting state for this path
+	}
+
+	// 7. Execute Else Branch (if it has weight and exists)
+	elseChunk := (*Chunk)(nil)
+	if elseChunkIndexVal >= 0 {
+		elseChunk = v.constants[elseChunkIndexVal].(*Chunk)
+	}
+	if elseChunk != nil && outcomeHasWeight(elseStartState.ValueOutcome) {
+		vm.stack[vm.sp] = elseStartState // Replace context state with else start state
+		branchResultState, branchErr := vm.ExecuteChunk(elseChunk)
+		if branchErr != nil {
+			// TODO: Handle ReturnValue signal
+			return nil, v.runtimeError("error executing 'else' branch chunk: %v", branchErr)
+		}
+		finalElseResultState = branchResultState
+	} else if outcomeHasWeight(elseStartState.ValueOutcome) { // Path has weight but no block
+		finalElseResultState = elseStartState // Result is starting state
+	}
+
+	// 8. Combine Branch Results using appendVarStates
+	combinedState, combineErr := appendVarStates(finalThenResultState, finalElseResultState)
+	if combineErr != nil {
+		return nil, v.runtimeError("failed to combine 'if' branch results: %v", combineErr)
+	}
+
+	// 9. Replace context state on stack with the final combined result
+	_, err = v.pop() // Pop the original context state (or the state left by the last branch)
+	if err != nil {
+		return nil, v.runtimeError("stack error popping context/branch state after 'if'")
+	}
+
+	// 10. Apply Reduction to combined state
+	finalCombinedState, reduceErr := v.reduceStateIfNeeded(combinedState)
+	if reduceErr != nil {
+		return nil, v.runtimeError("error reducing combined IfStmt result: %v", reduceErr)
+	}
+
+	// 11. Push final result onto stack
+	if err := v.push(finalCombinedState); err != nil {
 		return nil, err
 	}
 
-	if err := v.push(finalState); err != nil {
-		return nil, err
-	}
-
-	// For now:
-	return nil, v.runtimeError("if handler not implemented")
+	return nil, nil // Success, result is on stack}
 }
 
 func (v *VM) vm_handle_distribute(vm *VM, args []*VarState) (*VarState, error) {
@@ -289,9 +409,9 @@ func SplitLatenciesBasedOnValue[V any](
 	valueDistribution *core.Outcomes[V],
 	valuePredicate func(v V) bool,
 ) (thenLat *core.Outcomes[core.Duration], elseLat *core.Outcomes[core.Duration], err error) {
-
-	thenLat = &core.Outcomes[core.Duration]{} // Initialize empty
-	elseLat = &core.Outcomes[core.Duration]{} // Initialize empty
+	reducer := func(a, b core.Duration) core.Duration { return a + b } // Standard duration reducer
+	thenLat = &core.Outcomes[core.Duration]{}                          // Initialize empty
+	elseLat = &core.Outcomes[core.Duration]{}                          // Initialize empty
 
 	// Handle nil inputs gracefully
 	if valueDistribution == nil {
@@ -315,14 +435,15 @@ func SplitLatenciesBasedOnValue[V any](
 	// Iterate and distribute latency buckets based on value predicate
 	for i := range valueDistribution.Buckets {
 		valueBucket := valueDistribution.Buckets[i]
+		// Check if latency distribution has a corresponding bucket (paranoid check)
+		if i >= len(latDistribution.Buckets) {
+			// This should be caught by the initial length check, but defensively...
+			err = fmt.Errorf("internal error: latency distribution missing bucket at index %d during split", i)
+			return &core.Outcomes[core.Duration]{And: reducer}, &core.Outcomes[core.Duration]{And: reducer}, err
+		}
 		latencyBucket := latDistribution.Buckets[i] // Corresponding latency bucket
 
-		// Optional: Weight check (can be sensitive to float precision)
-		// if !core.ApproxEq(valueBucket.Weight, latencyBucket.Weight, 1e-9) {
-		// 	err = fmt.Errorf("bucket weight mismatch at index %d during latency split (V:%.9f L:%.9f)", i, valueBucket.Weight, latencyBucket.Weight)
-		// 	return &core.Outcomes[core.Duration]{}, &core.Outcomes[core.Duration]{}, err
-		// }
-
+		// Apply the predicate to the value bucket
 		if valuePredicate(valueBucket.Value) {
 			thenLat.Buckets = append(thenLat.Buckets, latencyBucket)
 		} else {
@@ -339,6 +460,10 @@ func SplitLatenciesBasedOnValue[V any](
 // --- Also need VarState.Append method or helper ---
 // Helper to append VarStates (simplistic version)
 func appendVarStates(stateA, stateB *VarState) (*VarState, error) {
+	// Handle nil states
+	if stateA == nil && stateB == nil {
+		return createIdentityState(), nil
+	} // Return identity if both paths yield nothing
 	if stateA == nil {
 		return stateB, nil
 	}
@@ -346,54 +471,79 @@ func appendVarStates(stateA, stateB *VarState) (*VarState, error) {
 		return stateA, nil
 	}
 
-	// Combine Latencies
-	latA := stateA.SafeLatencyOutcome().(*core.Outcomes[core.Duration])
+	// --- Combine Latencies using Append ---
+	// Latency is always *core.Outcomes[core.Duration] or nil
+	latA := stateA.SafeLatencyOutcome().(*core.Outcomes[core.Duration]) // Type assertion safe due to VarState invariants
 	latB := stateB.SafeLatencyOutcome().(*core.Outcomes[core.Duration])
-	if latA == nil {
-		latA = zeroLatencyOutcome()
+	var combinedLat *core.Outcomes[core.Duration]
+	if latA == nil && latB == nil {
+		combinedLat = zeroLatencyOutcome()
+	} else if latA == nil {
+		combinedLat = latB.Copy() // Copy B if A is nil
+	} else {
+		// Use A as receiver, Append handles nil B correctly
+		combinedLat = latA.Copy().Append(latB)
 	}
-	if latB == nil {
-		latB = zeroLatencyOutcome()
-	}
-	combinedLat := latA.Copy().Append(latB) // Append creates new slice internally
 
-	// Combine Values (requires type matching)
-	var combinedVal any
+	// --- Combine Values using Append ---
 	valA := stateA.SafeValueOutcome()
 	valB := stateB.SafeValueOutcome()
+	var combinedVal any // Resulting combined value outcome
 
-	if valA == nil {
-		combinedVal = valB
-		goto CombineDone
-	}
-	if valB == nil {
-		combinedVal = valA
-		goto CombineDone
-	}
-
-	// TODO: Use reflection or type switch to call appropriate Append
-	switch vA := valA.(type) {
+	// Determine the type and perform append
+	switch a := valA.(type) {
+	case nil:
+		combinedVal = valB // If A is nil, result is B (which could also be nil)
 	case *core.Outcomes[bool]:
-		if vB, ok := valB.(*core.Outcomes[bool]); ok {
-			combinedVal = vA.Copy().Append(vB)
+		if b, ok := valB.(*core.Outcomes[bool]); ok || valB == nil {
+			combinedVal = a.Copy().Append(b) // Append handles nil b
 		} else {
-			goto TypeMismatch
+			goto TypeMismatchError
 		}
 	case *core.Outcomes[int64]:
-		if vB, ok := valB.(*core.Outcomes[int64]); ok {
-			combinedVal = vA.Copy().Append(vB)
+		if b, ok := valB.(*core.Outcomes[int64]); ok || valB == nil {
+			combinedVal = a.Copy().Append(b)
 		} else {
-			goto TypeMismatch
+			goto TypeMismatchError
 		}
-	// Add other supported discrete types (float64, string, AccessResult etc.)
+	// case *core.Outcomes[float64]:
+	case *core.Outcomes[core.Duration]: // Should not happen as ValueOutcome, but handle defensively
+		if b, ok := valB.(*core.Outcomes[core.Duration]); ok || valB == nil {
+			combinedVal = a.Copy().Append(b)
+		} else {
+			goto TypeMismatchError
+		}
+	case *core.Outcomes[core.AccessResult]:
+		if b, ok := valB.(*core.Outcomes[core.AccessResult]); ok || valB == nil {
+			combinedVal = a.Copy().Append(b)
+		} else {
+			goto TypeMismatchError
+		}
+	// Add other supported *core.Outcomes[T] types here...
 	default:
-		return nil, fmt.Errorf("unsupported value type %T for append", valA)
+		// This case occurs if valA is non-nil but not a recognized *core.Outcomes type
+		// OR if valB is non-nil and doesn't match valA's type.
+		// We already checked for valB mismatch above (goto TypeMismatchError),
+		// so this mainly catches unsupported types in valA.
+		return nil, fmt.Errorf("unsupported value type %T encountered during appendVarStates", valA)
 	}
-	goto CombineDone
 
-TypeMismatch:
-	return nil, fmt.Errorf("cannot append mismatched value types: %T and %T", valA, valB)
-
-CombineDone:
 	return &VarState{ValueOutcome: combinedVal, LatencyOutcome: combinedLat}, nil
+
+TypeMismatchError:
+	return nil, fmt.Errorf("cannot append mismatched value types: %T and %T", valA, valB)
+}
+
+// outcomeHasWeight checks if an outcome object (expected *core.Outcomes[T]) is non-nil and has weight > 0
+func outcomeHasWeight(outcome any) bool {
+	if outcome == nil {
+		return false
+	}
+	// Use the interface to check TotalWeight
+	if oc, ok := outcome.(core.OutcomeContainer); ok {
+		return oc.TotalWeight() > 1e-12 // Use a small epsilon
+	}
+	// If it's not an OutcomeContainer, log a warning but assume no weight?
+	fmt.Printf("Warning: outcomeHasWeight received non-OutcomeContainer type: %T\n", outcome)
+	return false
 }

@@ -129,10 +129,9 @@ func TestExecuteChunk_BinaryAdd(t *testing.T) {
 
 	// Need to implement the vm_handle_add function in vm.go first!
 	// This test will fail until vm_handle_add is implemented.
-	t.Skip("Skipping Binary Add test until vm_handle_add handler is implemented") // Skip for now
 
 	// Expected result: Value=30, Latency=0
-	// runCodeAndCheckResult(t, chunk, int64(30), 0.0)
+	runCodeAndCheckResult(t, chunk, int64(30), 0.0)
 }
 
 func TestExecuteChunk_LetAndGetGlobal(t *testing.T) {
@@ -181,7 +180,7 @@ func TestExecuteChunk_SimpleSequence(t *testing.T) {
 
 	// Register DurationMS handler for the test VM
 	vm := NewVM(15)
-	vm.RegisterInternalHandler(0, // Assume DurationMS gets ID 0
+	vm.RegisterInternalHandler(HandlerDurationMS,
 		func(vm *VM, args []*VarState) (*VarState, error) {
 			if len(args) != 1 {
 				return nil, fmt.Errorf("DurationMS needs 1 arg")

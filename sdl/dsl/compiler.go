@@ -1,15 +1,38 @@
+// sdl/dsl/compiler.go
 package dsl
 
 import (
 	"fmt"
 
-	"github.com/panyam/leetcoach/sdl/core" // For wrapping literals
+	"github.com/panyam/leetcoach/sdl/core"
+)
+
+// --- Handler IDs (Must match VM registration) ---
+const (
+	HandlerAdd = iota // ... (copy all IDs from vm.go) ...
+	HandlerSubtract
+	HandlerMultiply
+	HandlerDivide
+	HandlerNegate
+	HandlerNot
+	HandlerEqual
+	HandlerNotEqual
+	HandlerGreater
+	HandlerGreaterEqual
+	HandlerLess
+	HandlerLessEqual
+	HandlerAnd    // Logical AND
+	HandlerOr     // Logical OR
+	HandlerAndSeq // Sequential Composition
+	HandlerDelay
+	HandlerIf
+	HandlerDurationMS // Added Handler ID
+	HandlerDistribute
 )
 
 // Compiler transforms AST into bytecode Chunk.
 type Compiler struct {
-	chunk *Chunk // The chunk being built
-	// Add scope/symbol table management later if needed for locals
+	chunk *Chunk
 }
 
 // NewCompiler creates a new compiler instance.
@@ -17,12 +40,7 @@ func NewCompiler() *Compiler {
 	return &Compiler{}
 }
 
-// Placeholder map - ideally shared with VM handler registration
-var internalFuncNameMap = map[string]int{
-	// Add mappings here... e.g. "DurationMS": HandlerDurationMS,
-}
-
-// Compile is the main entry point for compiling an AST node.
+// Compile entry point - adjust final OpReturn logic
 func (c *Compiler) Compile(node Node) (*Chunk, error) {
 	c.chunk = NewChunk(fmt.Sprintf("Script<%T>", node)) // Add basic name
 
@@ -30,8 +48,23 @@ func (c *Compiler) Compile(node Node) (*Chunk, error) {
 		return nil, err
 	}
 
-	// Always end script compilation with OpReturn
-	c.emitOpCode(OpReturn, 0, node.End()) // Operand ignored for OpReturn
+	// Always end script compilation with OpReturn *if needed*
+	lastInstrIndex := -1
+	if len(c.chunk.Instructions) > 0 {
+		lastInstrIndex = len(c.chunk.Instructions) - 1
+	}
+
+	if lastInstrIndex < 0 || c.chunk.Instructions[lastInstrIndex].Opcode != OpReturn {
+		// Add OpReturn if the last instruction wasn't already one.
+		// Determine line number from the last instruction or the node itself.
+		line := 0
+		if lastInstrIndex >= 0 {
+			line = c.chunk.Instructions[lastInstrIndex].Line
+		} else if node != nil {
+			line = node.End() // Fallback to node end position
+		}
+		c.emitOpCode(OpReturn, 0, line)
+	}
 
 	return c.chunk, nil
 }
@@ -39,7 +72,9 @@ func (c *Compiler) Compile(node Node) (*Chunk, error) {
 // compileNode dispatches compilation based on node type.
 func (c *Compiler) compileNode(node Node) error {
 	// line := node.Pos()
+
 	switch n := node.(type) {
+	// --- Expression Nodes ---
 	case *LiteralExpr:
 		return c.compileLiteral(n)
 	case *IdentifierExpr:
@@ -56,6 +91,8 @@ func (c *Compiler) compileNode(node Node) error {
 		return c.compileCallExpr(n) // Add this
 	case *MemberAccessExpr:
 		return c.compileMemberAccessExpr(n) // Add this
+
+	// --- Statement Nodes ---
 	case *BlockStmt:
 		return c.compileBlockStmt(n)
 	case *LetStmt:
@@ -76,16 +113,16 @@ func (c *Compiler) compileNode(node Node) error {
 				return err
 			}
 		}
+		// Add implicit return after compiling file declarations? Maybe not needed.
 		return nil
 
 	// --- Other Declarations (Ignore for now, handle in separate compilation phases) ---
 	case *ComponentDecl, *SystemDecl, *InstanceDecl, *AnalyzeDecl, *EnumDecl:
 		// These define structure, not executable code directly in this pass
 		return nil
-	// Add cases for ComponentDecl, SystemDecl etc. later
 
 	default:
-		return fmt.Errorf("compiler not implemented for node type %T", node)
+		return fmt.Errorf("compiler cannot handle node type %T yet", node)
 	}
 }
 
@@ -111,6 +148,14 @@ func (c *Compiler) compileLiteral(expr *LiteralExpr) error {
 	state := &VarState{ValueOutcome: valueOutcome, LatencyOutcome: zeroLatencyOutcome()}
 	constIndex := c.chunk.AddConstant(state)
 	c.emitOpCode(OpPushConst, constIndex, expr.Pos())
+	return nil
+}
+
+// compileIdentifier emits OpGetGlobal/OpGetLocal
+func (c *Compiler) compileIdentifier(expr *IdentifierExpr) error {
+	// TODO: Differentiate local/global lookup
+	nameIndex := c.chunk.AddConstant(expr.Name)
+	c.emitOpCode(OpGetGlobal, nameIndex, expr.Pos())
 	return nil
 }
 
@@ -177,23 +222,18 @@ func (c *Compiler) compileUnaryExpr(expr *UnaryExpr) error {
 	return nil
 }
 
-// compileIdentifier emits OpGetGlobal/OpGetLocal
-func (c *Compiler) compileIdentifier(expr *IdentifierExpr) error {
-	// TODO: Differentiate local/global lookup
-	nameIndex := c.chunk.AddConstant(expr.Name)
-	c.emitOpCode(OpGetGlobal, nameIndex, expr.Pos())
-	return nil
-}
-
 // compileAndExpr compiles Left, Right, then OpCallFunc(HandlerAndSeq)
 func (c *Compiler) compileAndExpr(expr *AndExpr) error {
 	line := expr.Pos()
 	if err := c.compileNode(expr.Left); err != nil {
 		return err
 	}
+	// Result of left is on stack
+	// Compile right - its result will be on stack above left's
 	if err := c.compileNode(expr.Right); err != nil {
 		return err
 	}
+	// Call the sequence handler - it expects Left then Right state on stack
 	c.emitOpCode(OpCallFunc, HandlerAndSeq, line)
 	return nil
 }
@@ -201,37 +241,48 @@ func (c *Compiler) compileAndExpr(expr *AndExpr) error {
 // compileInternalCallExpr compiles Args, then OpCallFunc(Handler)
 func (c *Compiler) compileInternalCallExpr(expr *InternalCallExpr) error {
 	line := expr.Pos()
-	// Compile arguments first
+	// Compile arguments first, pushing their results onto the stack
+	// argCount := len(expr.Args)
 	for _, arg := range expr.Args {
 		if err := c.compileNode(arg); err != nil {
 			return err
 		}
 	}
-	// TODO: Map FuncName to HandlerID (needs registry in compiler?)
-	// For now, assume a direct mapping exists or use a placeholder
-	handlerID, ok := internalFuncNameMap[expr.FuncName] // Example lookup
+	// Map FuncName to HandlerID
+	handlerID, ok := internalFuncNameMap[expr.FuncName]
 	if !ok {
 		return fmt.Errorf("unknown internal function: %s", expr.FuncName)
 	}
+	// Check arity? Handler function will do that.
+	// Emit OpCallFunc - handler will pop 'argCount' arguments
 	c.emitOpCode(OpCallFunc, handlerID, line)
+	// Handler must push exactly one result state
 	return nil
+}
+
+// Placeholder map - ideally shared with VM handler registration
+var internalFuncNameMap = map[string]int{
+	"DurationMS": HandlerDurationMS,
+	// Add other internal function mappings here...
+	// e.g., "GetDiskReadProfile": HandlerGetDiskReadProfile,
 }
 
 // compileCallExpr compiles Function, Args, then OpCall(ArgCount)
 func (c *Compiler) compileCallExpr(expr *CallExpr) error {
 	line := expr.Pos()
 	// Compile the function expression itself (e.g., identifier, member access)
+	// This should leave the function/method object (or identifier for it) on the stack.
 	if err := c.compileNode(expr.Function); err != nil {
 		return err
 	}
-	// Compile arguments
+	// Compile arguments, pushing results onto the stack
 	argCount := len(expr.Args)
 	for _, arg := range expr.Args {
 		if err := c.compileNode(arg); err != nil {
 			return err
 		}
 	}
-	// Emit call instruction
+	// Emit call instruction - VM handles finding the function and executing
 	if argCount > 255 {
 		return fmt.Errorf("too many arguments in call (>255)")
 	}
@@ -242,7 +293,7 @@ func (c *Compiler) compileCallExpr(expr *CallExpr) error {
 // compileMemberAccessExpr compiles Receiver, then OpGetMember(FieldNameIndex)?
 // Or handle member access within OpCall if it's always a method call?
 // Let's assume for now member access is primarily for method calls,
-// so we just compile the receiver. The OpCall logic will handle the '.Member'.
+// so we just compile the receiver. The subsequent OpCall will use this.
 func (c *Compiler) compileMemberAccessExpr(expr *MemberAccessExpr) error {
 	// Compile the receiver expression. The subsequent OpCall will use this.
 	if err := c.compileNode(expr.Receiver); err != nil {
@@ -257,12 +308,27 @@ func (c *Compiler) compileMemberAccessExpr(expr *MemberAccessExpr) error {
 // compileBlockStmt compiles the sequence of statements.
 func (c *Compiler) compileBlockStmt(block *BlockStmt) error {
 	// TODO: Handle scope enter/exit for locals
-	for _, stmt := range block.Statements {
-		if err := c.compileNode(stmt); err != nil {
+	for i, stmt := range block.Statements {
+		isLast := (i == len(block.Statements)-1)
+		err := c.compileNode(stmt)
+		if err != nil {
 			return err
 		}
+
+		// Pop result of statement if it's not the last one and not a defining statement
+		// Needed because ExprStmt leaves its value on stack, but we only want the *last* one for the block result.
+		// Let/Define statements consume the value themselves. Return exits.
+		// If/Distribute leave their combined result.
+		if !isLast {
+			switch stmt.(type) {
+			case *ExprStmt, *IfStmt, *DistributeStmt: // Add other result-leaving stmts
+				c.emitOpCode(OpPop, 0, stmt.End())
+			case *LetStmt, *ReturnStmt:
+				// These don't leave a value intended for the *next* sequential combination
+			}
+		}
 	}
-	// Result of the block is implicitly the result of the last statement?
+	// Result of the block is implicitly the result left on the stack by the last statement.
 	// The VM handles the stack. No specific block end opcode needed unless managing scopes.
 	return nil
 }
@@ -270,25 +336,25 @@ func (c *Compiler) compileBlockStmt(block *BlockStmt) error {
 // compileLetStmt compiles Value, then OpDefineGlobal/OpSetLocal
 func (c *Compiler) compileLetStmt(stmt *LetStmt) error {
 	line := stmt.Pos()
+	// Compile the value expression first
 	if err := c.compileNode(stmt.Value); err != nil {
 		return err
 	}
+	// Now emit instruction to store the value (which is on top of stack)
 	// TODO: Use OpSetLocal if in local scope
 	nameIndex := c.chunk.AddConstant(stmt.Variable.Name)
-	if nameIndex > 65535 {
-		return fmt.Errorf("constant pool limit exceeded")
-	}
-	c.emitOpCode(OpDefineGlobal, nameIndex, line) // Assumes DefineGlobal consumes value
+	// Check index limits maybe? Assume ok for now.
+	c.emitOpCode(OpDefineGlobal, nameIndex, line) // Assumes DefineGlobal consumes value from stack
+	// LetStmt itself doesn't leave a value on the stack for sequence
 	return nil
 }
 
-// compileExprStmt compiles Expression, then OpPop
+// compileExprStmt compiles Expression. Value is left on stack.
 func (c *Compiler) compileExprStmt(stmt *ExprStmt) error {
-	line := stmt.Pos()
 	if err := c.compileNode(stmt.Expression); err != nil {
 		return err
 	}
-	c.emitOpCode(OpPop, 0, line) // Pop the result
+	// Value is left on stack. If not last stmt in block, BlockStmt compile adds OpPop.
 	return nil
 }
 
@@ -308,10 +374,12 @@ func (c *Compiler) compileDelayStmt(stmt *DelayStmt) error {
 	if err := c.compileNode(stmt.Duration); err != nil {
 		return err
 	}
+	// Delay needs the *current* implicit state before the duration.
+	// This is tricky. Maybe Delay needs to be an expression form `delay(dur, expr)`?
+	// For now, assume OpCallFunc(HandlerDelay) pops the duration and implicitly uses the
+	// state *before* the duration was pushed. This requires careful VM handler logic.
 	c.emitOpCode(OpCallFunc, HandlerDelay, line)
-	// Delay result is implicitly popped by the handler? Or should we pop here?
-	// Let handler manage stack. Delay modifies the *next* sequence combine.
-	// No, Delay should combine with current state. Let handler handle stack.
+	// Handler must leave the combined state on the stack.
 	return nil
 }
 
@@ -327,7 +395,8 @@ func (c *Compiler) compileIfStmt(stmt *IfStmt) error {
 	jumpToElse := c.emitJump(OpJumpIfFalsePop, line) // Returns index of jump instr
 
 	// 3. Compile Then block
-	// Pop the condition result before executing 'then'? OpJumpIfFalsePop does this.
+	// OpJumpIfFalsePop pops the condition value implicitly.
+	// The result of the Then block will be left on the stack.
 	if err := c.compileNode(stmt.Then); err != nil {
 		return err
 	}
@@ -336,25 +405,29 @@ func (c *Compiler) compileIfStmt(stmt *IfStmt) error {
 	jumpToEnd := c.emitJump(OpJump, stmt.Then.End()) // Jump after then block
 
 	// 5. Patch the jump-to-else offset
-	// Offset = Current position - position after jump instr
-	elseTargetOffset := len(c.chunk.Instructions) - (jumpToElse + 1)
+	elseTargetOffset := len(c.chunk.Instructions) - (jumpToElse + 1) // Offset from *next* instruction
 	c.patchJump(jumpToElse, elseTargetOffset)
 
 	// 6. Compile Else block (if exists)
 	if stmt.Else != nil {
-		// Pop the result of the 'then' block if it wasn't used? No, If should leave result on stack.
+		// If we reached here (condition was false), the stack should just contain
+		// the state *before* the condition was evaluated.
+		// The 'else' block execution will combine with that implicit state.
+		// The result of the Else block will replace the pre-condition state on the stack.
 		if err := c.compileNode(stmt.Else); err != nil {
 			return err
 		}
+	} else {
+		// If no 'else' block, what should be the result if condition was false?
+		// Push the identity state? Or just leave stack as it was after condition pop?
+		// Let's push identity for now. VM side needs to handle this case in `combine`.
+		c.emitConstant(createIdentityState(), stmt.End())
 	}
-	// If no else block, the implicit result is the condition value? No, if should evaluate to something.
-	// Maybe push a default value if no else? Or rely on OpJumpIfFalsePop having popped condition.
-	// Current approach: If condition is false, stack has condition popped, then jump executes.
 
 	// 7. Patch the jump-to-end offset
 	endTargetOffset := len(c.chunk.Instructions) - (jumpToEnd + 1)
 	c.patchJump(jumpToEnd, endTargetOffset)
-
+	// The final result (either from Then or Else/Identity) is left on the stack.
 	return nil
 }
 
@@ -371,19 +444,34 @@ func (c *Compiler) emitConstant(value interface{}, line int) {
 	if index > 65535 { // Example limit for 16-bit operand
 		panic("Constant pool limit (65536) exceeded")
 	}
+	// TODO: Emit OpPushConst with 1 or 2 byte operand based on index size
+	if index > 255 {
+		panic("OpPushConst with 2-byte operand not implemented yet")
+	}
 	c.emitOpCode(OpPushConst, index, line)
 }
 
 // emitJump writes a jump instruction with a placeholder offset. Returns index to patch.
 func (c *Compiler) emitJump(op OpCode, line int) int {
-	operandPlaceholder := 9999                         // Placeholder offset
-	return c.chunk.Write(op, operandPlaceholder, line) // Write instruction, return its index
+	operandPlaceholder := 9999 // Placeholder offset
+	// TODO: Emit jump operand (e.g., 2 bytes)
+	if op != OpJump && op != OpJumpIfFalsePop {
+		panic(fmt.Sprintf("emitJump called with non-jump opcode %s", op))
+	}
+	offset := c.chunk.Write(op, operandPlaceholder, line) // Write instruction, return its index
+	return offset
+
 }
 
 // patchJump updates the operand of a previously written jump instruction.
 func (c *Compiler) patchJump(jumpInstructionIndex int, targetOffset int) {
+	// TODO: Update jump operand (e.g., 2 bytes)
+	if targetOffset < 0 {
+		// Should not happen if jumps are always forward for if/else
+		panic(fmt.Sprintf("Negative jump offset calculated: %d", targetOffset))
+	}
 	if targetOffset > 65535 { // Check if offset fits in operand (e.g., 16-bit)
-		panic("Jump offset too large")
+		panic(fmt.Sprintf("Jump offset %d too large (> 65535)", targetOffset))
 	}
 	if jumpInstructionIndex < 0 || jumpInstructionIndex >= len(c.chunk.Instructions) {
 		panic(fmt.Sprintf("Invalid jump instruction index %d to patch", jumpInstructionIndex))

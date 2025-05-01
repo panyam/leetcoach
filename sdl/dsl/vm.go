@@ -47,7 +47,7 @@ type VM struct {
 
 	// --- Bytecode Execution Fields ---
 	instructions []Instruction // Current instructions being executed
-	constants    []interface{} // Constant pool for the current chunk
+	constants    []any         // Constant pool for the current chunk
 
 	ip    int         // Instruction Pointer: index into chunk.Code
 	stack []*VarState // Reuse stack, stores *VarState now
@@ -68,30 +68,7 @@ type VM struct {
 	// locals []*VarState // Or manage locals via stack offsets
 }
 
-// --- Handler IDs (Must match Compiler emission) ---
-// Using constants directly in VM for now
-const (
-	HandlerAdd = iota
-	HandlerSubtract
-	HandlerMultiply
-	HandlerDivide
-	HandlerNegate
-	HandlerNot
-	HandlerEqual
-	HandlerNotEqual
-	HandlerGreater
-	HandlerGreaterEqual
-	HandlerLess
-	HandlerLessEqual
-	HandlerAnd    // Logical AND
-	HandlerOr     // Logical OR
-	HandlerAndSeq // Sequential Composition
-	HandlerDelay
-	// Complex handlers (will call Go logic)
-	HandlerIf
-	HandlerDistribute
-	// Add more handler IDs as needed
-)
+const VmStackCapacity = 256
 
 // NewVM creates a new vm instance.
 func NewVM(maxBuckets int) *VM {
@@ -99,13 +76,14 @@ func NewVM(maxBuckets int) *VM {
 		maxBuckets = 15 // Default if invalid
 	}
 	vm := &VM{
-		stack:              make([]*VarState, 0, 100), // Initial capacity
-		env:                NewEnvironment(),          // Start with a global environment
+		stack:              make([]*VarState, VmStackCapacity),
+		env:                NewEnvironment(), // Start with a global environment
 		internalHandlers:   make(map[int]InternalFunction),
 		sequentialReducers: make(map[ReducerKey]core.ReducerFunc[any, any, any]),
 		maxOutcomeLen:      maxBuckets,
 		durationReducer:    core.ReduceDurationsAdaptive, // <-- Set default reducer
 		ip:                 0,                            // Initialize IP
+		globals:            map[string]*VarState{},
 	}
 	vm.registerDefaultReducers() // Register standard reducers
 	vm.registerDefaultHandlers() // <-- Register operator functions
@@ -551,7 +529,7 @@ func (v *VM) ExecuteChunk(chunk *Chunk) (*VarState, error) {
 }
 
 // runtimeError formats an error message including the current line number.
-func (v *VM) runtimeError(format string, args ...interface{}) error {
+func (v *VM) runtimeError(format string, args ...any) error {
 	line := -1
 	// Use line of the instruction *just executed* (ip was already incremented)
 	instrIndex := v.ip - 1

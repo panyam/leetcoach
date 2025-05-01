@@ -41,16 +41,45 @@ func (v *VM) vm_handle_add(vm *VM, args []*VarState) (*VarState, error) {
 	}
 
 	// TODO: Perform actual type checking and probabilistic ADDITION
-	// Placeholder: Combine latency, take right value
+
+	// --- Perform Value Addition (Deterministic Example) ---
+	var resultValOutcome any
+	var combinedErr error
+
+	// Check types and perform operation (for int64 + int64 -> int64)
+	leftValInt, okL := leftState.ValueOutcome.(*core.Outcomes[int64])
+	rightValInt, okR := rightState.ValueOutcome.(*core.Outcomes[int64])
+
+	if okL && okR {
+		// Ensure deterministic
+		lVal, lOK := leftValInt.GetValue()
+		rVal, rOK := rightValInt.GetValue()
+		if lOK && rOK {
+			resultVal := lVal + rVal
+			resultValOutcome = (&core.Outcomes[int64]{}).Add(1.0, resultVal)
+		} else {
+			combinedErr = v.runtimeError("cannot add non-deterministic int64 outcomes yet")
+		}
+	} else {
+		// TODO: Handle other type combinations (float+float, etc.)
+		combinedErr = v.runtimeError("unsupported operand types for '+': %T and %T",
+			leftState.ValueOutcome, rightState.ValueOutcome)
+	}
+	if combinedErr != nil {
+		return nil, combinedErr // Return error if value combination failed
+	}
+
 	combinedState, err := v.combineOutcomesAndReduce(leftState, rightState)
 	if err != nil {
 		return nil, fmt.Errorf("add failed during combination: %w", err)
 	}
 
-	// Push result
-	if err := v.push(combinedState); err != nil {
+	// --- Push combined state with NEW value outcome ---
+	finalState := &VarState{ValueOutcome: resultValOutcome, LatencyOutcome: combinedState.LatencyOutcome}
+	if err := v.push(finalState); err != nil {
 		return nil, err
 	}
+
 	return nil, nil // Success, result is on stack
 }
 

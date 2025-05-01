@@ -11,7 +11,7 @@ var (
 
 // push adds a VarState to the stack.
 func (v *VM) push(state *VarState) error {
-	if v.sp >= len(v.stack) {
+	if v.sp >= VmStackCapacity {
 		return v.runtimeError("%v: max stack size %d reached", ErrStackOverflow, len(v.stack))
 	}
 	if state == nil {

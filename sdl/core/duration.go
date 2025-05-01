@@ -66,6 +66,26 @@ import (
 //    - Cons: More complex implementation than AdaptiveReduce; may not preserve
 //      mean as well if high-weight buckets don't align with anchor percentiles.
 //
+// 4. (Future) DurationRange` Approach (Alternative Data Structure):
+//    - Concept: Instead of tracking latency as `Outcomes[Duration]` (point values), track it as `Outcomes[DurationRange]` where `DurationRange = {Min, Mode, Max}`.
+//    - Pros
+//        * Allows using reduction algorithms designed for ranges (`MergeOverlapping...`, `InterpolateRangedResults`
+//        adapted for `DurationRange`). These might preserve overall min/max bounds and central tendency (via Mode)
+//        effectively during reduction.
+//        *   Bundles latency uncertainty (Min/Max) directly with the most likely value (Mode).
+//        *   Could simplify the VM back to a single track (`Outcomes[V]`, where `V` might be `bool`, `enum`,
+//        `DurationRange`, etc.) if *all* latency is represented this way, eliminating the need for the separate latency
+//        track and potential synchronization issues.
+//    - Cons:
+//        *   Requires defining Min/Mode/Max for all primitive latencies.
+//        *   All latency calculations become range-based (e.g., adding ranges).
+//        *   Metrics rely on `ModeDuration` as the point estimate, which might not always be accurate if the range is wide or skewed.
+//        *   If still using a dual track, complexity shifts to the Reducer Registry needing combiners for `V + DurationRange`.
+//    Conclusion: A viable alternative, primarily attractive for its potential to improve reduction fidelity using
+//    range-aware algorithms. Kept in consideration if `ReduceDurationsAdaptive` proves insufficient for specific
+//    accuracy needs, particularly regarding the preservation of the absolute Min/Max latency bounds during reduction.
+//    It represents a shift in how latency is fundamentally represented.
+//
 // **Current Default Choice:** `ReduceDurationsAdaptive` (with endpoint boost) is
 // chosen as the default in the VM because it demonstrated superior preservation
 // of the mean and critical P99 tail compared to `InterpolateDurations` in tests,

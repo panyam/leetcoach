@@ -281,7 +281,48 @@ func (v *VM) combineOutcomesAndReduce(stateA, stateB *VarState) (*VarState, erro
 
 	// --- Value Track (Take Last) ---
 	// The final value distribution is simply the one from stateB.
-	finalValOutcome := stateB.ValueOutcome
+	// --- Combine Values - Propagate Combined Probability ---
+	valA := stateA.SafeValueOutcome()
+	valB := stateB.SafeValueOutcome()
+
+	// If valA or valB is nil, the result is likely just the non-nil one? Or nil?
+	// If only concerned with AccessResult sequence for now:
+	finalValOutcome := valB // Start with valB
+
+	// accValA, okA := valA.(*core.Outcomes[core.AccessResult])
+	// accValB, okB := valB.(*core.Outcomes[core.AccessResult])
+
+	if okA && okB { // Only attempt weight adjustment if both are AccessResult
+		// PROBLEM: We don't have a generic way to get combined SUCCESS probability easily.
+		// core.And applied to the *latency* track calculates the correct combined weights per path.
+		// Can we use the combined *latency* outcome's weights to reconstruct the value outcome?
+		// This assumes a direct correlation between latency buckets and value buckets after And,
+		// which *should* hold if the reducers maintain order/structure.
+
+		// Create a new AccessResult outcome based on valB's *values* but combinedLat's *weights*.
+		// This is complex and assumes bucket alignment.
+		// newValOutcome := &core.Outcomes[core.AccessResult]{}
+		// combinedBuckets := combinedLatOutcome.Buckets // Buckets from And(latA, latB)
+
+		// How to map combined latency bucket back to value bucket from B?
+		// This approach seems too complex and fragile.
+
+		// --- Simpler Idea: Adjust final availability? No, need full distribution. ---
+
+		// --- Revert for now: Stick to "Take Last Value" ---
+		// Acknowledge this is inaccurate for combined probability.
+		// We need a better core composition mechanism if this is required.
+		finalValOutcome = valB
+		fmt.Println("Warning: Using 'Take Last Value' for sequential composition - combined probability not fully propagated to value track.")
+
+	} else if valA == nil && valB != nil {
+		finalValOutcome = valB
+	} else if valA != nil && valB == nil {
+		finalValOutcome = valA // If B is nil, result is A? Or should sequence fail? Assume A.
+	} else {
+		// Both nil or incompatible types - result is nil? Or identity?
+		finalValOutcome = nil // Default to nil if unsure
+	}
 
 	// --- Create Combined State ---
 	// Initially use the combined latency and the value from B

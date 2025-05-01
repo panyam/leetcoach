@@ -7,13 +7,15 @@ import (
 	"github.com/panyam/leetcoach/sdl/core"
 )
 
-// evalLiteral evaluates a LiteralExpr node.
-// It parses the literal value based on its Kind, wraps it in a deterministic
-// Outcomes[T] object (single bucket, weight 1.0), and pushes the result
-// onto the vm's stack.
-func (v *VM) evalLiteral(expr *LiteralExpr) error {
-	var outcome any
+// sdl/dsl/eval_literal.go (Updated)
+
+// evalLiteral now returns *VarState and error
+func (v *VM) evalLiteral(expr *LiteralExpr) (*VarState, error) {
+	var valueOutcome any
 	var parseErr error
+
+	// Create zero latency outcome for literals
+	zeroLat := zeroLatencyOutcome() // Use helper
 
 	switch expr.Kind {
 	case "INT":
@@ -21,54 +23,43 @@ func (v *VM) evalLiteral(expr *LiteralExpr) error {
 		if err != nil {
 			parseErr = fmt.Errorf("invalid INT literal '%s': %w", expr.Value, err)
 		} else {
-			// Create a deterministic outcome: Outcomes[int64]
-			// Note: Using int64 for integers
 			o := (&core.Outcomes[int64]{}).Add(1.0, val)
-			// Set And func? Not strictly needed for literals, but good practice
-			o.And = func(a, b int64) int64 { return a + b } // Example reducer
-			outcome = o
+			valueOutcome = o
 		}
 	case "FLOAT":
 		val, err := strconv.ParseFloat(expr.Value, 64)
 		if err != nil {
 			parseErr = fmt.Errorf("invalid FLOAT literal '%s': %w", expr.Value, err)
 		} else {
-			// Create a deterministic outcome: Outcomes[float64]
 			o := (&core.Outcomes[float64]{}).Add(1.0, val)
-			o.And = func(a, b float64) float64 { return a + b }
-			outcome = o
+			valueOutcome = o
 		}
 	case "STRING":
-		// No parsing needed, value is already string
-		// Create a deterministic outcome: Outcomes[string]
 		o := (&core.Outcomes[string]{}).Add(1.0, expr.Value)
-		o.And = func(a, b string) string { return a + b } // Example string reducer (concat)
-		outcome = o
+		valueOutcome = o
 	case "BOOL":
 		val, err := strconv.ParseBool(expr.Value)
 		if err != nil {
 			parseErr = fmt.Errorf("invalid BOOL literal '%s': %w", expr.Value, err)
 		} else {
-			// Create a deterministic outcome: Outcomes[bool]
 			o := (&core.Outcomes[bool]{}).Add(1.0, val)
-			o.And = func(a, b bool) bool { return a && b } // Example bool reducer (AND)
-			outcome = o
+			valueOutcome = o
 		}
-		// case "DURATION": // TODO: Add duration parsing later
-		// return fmt.Errorf("duration literals not implemented yet")
+	// TODO: case "DURATION":
 	default:
-		return fmt.Errorf("unknown literal kind: %s", expr.Kind)
+		return nil, fmt.Errorf("unknown literal kind: %s", expr.Kind)
 	}
 
 	if parseErr != nil {
-		return parseErr
+		return nil, parseErr
+	}
+	if valueOutcome == nil {
+		return nil, fmt.Errorf("internal error: value outcome is nil after parsing literal %s", expr.Value)
 	}
 
-	if outcome == nil {
-		// Should not happen if parsing succeeded
-		return fmt.Errorf("internal error: outcome is nil after parsing literal %s", expr.Value)
-	}
-
-	v.push(outcome)
-	return nil
+	// Return the VarState
+	return &VarState{
+		ValueOutcome:   valueOutcome,
+		LatencyOutcome: zeroLat,
+	}, nil
 }

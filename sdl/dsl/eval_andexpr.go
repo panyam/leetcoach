@@ -11,39 +11,47 @@ var (
 	ErrUnsupportedType = errors.New("unsupported type for operation")
 )
 
-// evalAndExpr evaluates the Left and Right expressions, then combines their
-// resulting outcomes sequentially using core.And and the appropriate reducer.
-// It also applies outcome reduction (trimming) if the result exceeds the limit.
-func (v *VM) evalAndExpr(expr *AndExpr) error {
-	// 1. Evaluate Left
-	_, err := v.Eval(expr.Left)
+// evalAndExpr evaluates Left, then Right. Implicitly combines their results
+// which are assumed to be pushed onto the stack by their respective Eval calls
+// if they were statement expressions. If AndExpr is used purely as an expression,
+// Eval calls won't modify the stack directly, but return states.
+// Let's stick to the signature: Eval returns state, caller pushes if needed.
+// evalAndExpr will evaluate, combine, and return the combined state.
+func (v *VM) evalAndExpr(expr *AndExpr) (*VarState, error) {
+	// 1. Evaluate Left -> returns state directly
+	leftState, err := v.Eval(expr.Left)
 	if err != nil {
-		return fmt.Errorf("error evaluating left side of AND: %w", err)
+		var retVal *ReturnValue // Check for early return
+		if errors.As(err, &retVal) {
+			return retVal.Value, err
+		}
+		return nil, fmt.Errorf("error evaluating left side of AND: %w", err)
+	}
+	if leftState == nil {
+		return nil, fmt.Errorf("internal error: Eval returned nil state for left side of AND without error")
 	}
 
-	// 2. Evaluate Right
-	_, err = v.Eval(expr.Right)
+	// 2. Evaluate Right -> returns state directly
+	rightState, err := v.Eval(expr.Right)
 	if err != nil {
-		// Pop the left result before returning error to keep stack clean
-		_, _ = v.pop() // Ignore error on cleanup pop
-		return fmt.Errorf("error evaluating right side of AND: %w", err)
+		var retVal *ReturnValue // Check for early return
+		if errors.As(err, &retVal) {
+			return retVal.Value, err
+		}
+		return nil, fmt.Errorf("error evaluating right side of AND: %w", err)
+	}
+	if rightState == nil {
+		return nil, fmt.Errorf("internal error: Eval returned nil state for right side of AND without error")
 	}
 
-	// 3. Pop results (Right first, then Left)
-	rightOutcome, rErr := v.pop()
-	leftOutcome, lErr := v.pop()
-	if rErr != nil || lErr != nil {
-		// Should not happen if Eval succeeded
-		return fmt.Errorf("stack underflow after evaluating AND operands (L:%v, R:%v)", lErr, rErr)
-	}
-
-	// 4. Combine using the helper
-	combinedResult, err := v.combineOutcomesAndReduce(leftOutcome, rightOutcome)
+	// 3. Combine the returned states using the helper
+	combinedState, err := v.combineOutcomesAndReduce(leftState, rightState)
 	if err != nil {
-		return err // Propagate combination error
+		return nil, fmt.Errorf("error combining results in AND expression: %w", err)
 	}
 
-	// 5. Push final result
-	v.push(combinedResult)
-	return nil
+	// 4. Return the final combined state
+	// The caller (e.g., evalBlockStmt for an ExprStmt, or evalAssignmentStmt)
+	// will push this onto the stack if needed.
+	return combinedState, nil
 }

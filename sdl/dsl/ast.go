@@ -353,3 +353,34 @@ type OptionsDecl struct {
 }
 
 func (o *OptionsDecl) String() string { return "options { ... }" }
+
+// DistributeExpr represents the probabilistic choice expression/statement
+type DistributeExpr struct {
+	NodeInfo
+	ReturnType string // If used as expression, expected return type name
+	TotalProb  Expr   // Optional total probability expression
+	Cases      []*DistributeCase
+	Default    *BlockStmt // Optional default block
+}
+
+func (d *DistributeExpr) exprNode()      {} // Can be expression
+func (d *DistributeExpr) stmtNode()      {} // Can be statement
+func (d *DistributeExpr) String() string { return "distribute {...}" }
+
+// DistributeCase represents one branch in a distribute block
+type DistributeCase struct {
+	NodeInfo
+	Probability Expr
+	Block       *BlockStmt
+}
+
+func (dc *DistributeCase) String() string { return fmt.Sprintf("%s => { ... }", dc.Probability) }
+
+// DelayStmt represents adding explicit latency
+type DelayStmt struct {
+	NodeInfo
+	Duration Expr // Expression evaluating to Outcomes[Duration]
+}
+
+func (d *DelayStmt) stmtNode()      {}
+func (d *DelayStmt) String() string { return fmt.Sprintf("delay %s", d.Duration) }

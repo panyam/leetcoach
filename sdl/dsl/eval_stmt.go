@@ -4,215 +4,240 @@ package dsl
 import (
 	"errors"
 	"fmt"
-
-	"github.com/panyam/leetcoach/sdl/core" // For identity outcome
 )
 
-// --- Return Value Handling ---
-// We use a custom error type to signal a return statement was encountered.
-// This avoids needing a separate return channel or modifying Eval's signature drastically.
-var ErrReturnSignal = errors.New("return signal")
-
-type ReturnValue struct {
-	Value any // The actual return value (an Outcome object)
-}
-
-// Implement the error interface for ReturnValue
-func (rv *ReturnValue) Error() string {
-	return fmt.Sprintf("ReturnSignal(%v)", rv.Value)
-}
+// For identity outcome
 
 // --- Statement Evaluators ---
-
-// evalBlockStmt executes a sequence of statements within a given environment.
-// It handles the implicit sequential 'And' composition.
-// Returns the outcome of the *last* executed statement/expression in the block.
-func (v *VM) evalBlockStmt(block *BlockStmt, env *Environment, initialContext any) (any, error) {
-	// Use a new environment enclosed by the current one if needed for scoping?
-	// For now, execute in the provided environment.
-	// previousEnv := v.env
-	// v.env = env // Or NewEnclosedEnvironment(env)? Let's use current for simplicity first.
-	// defer func() { v.env = previousEnv }() // Restore env
-	var blockResult = initialContext            // Start with the provided context
-	isFirstStatement := (initialContext == nil) // Only true if no context was given
-
-	// fmt.Printf("DEBUG evalBlockStmt: Start. Context: %T, isFirst: %t\n", initialContext, isFirstStatement) // Debug
-	for _, stmt := range block.Statements {
-		var currentStmtOutcome any
-		evalErr := error(nil)
-
-		// Evaluate the statement
-		switch s := stmt.(type) {
-		case *AssignmentStmt:
-			evalErr = v.evalAssignmentStmt(s)
-			if evalErr == nil {
-				// Assignment result is stored in env, pop it from stack for composition chain
-				currentStmtOutcome, evalErr = v.pop() // Value is left on stack by evalAssignmentStmt's Eval call
-			}
-		case *ExprStmt:
-			// Evaluate the expression, result is left on stack
-			_, evalErr = v.Eval(s.Expression)
-			if evalErr == nil {
-				currentStmtOutcome, evalErr = v.pop() // Pop the result
-			}
-		case *ReturnStmt:
-			// Evaluate the return expression
-			evalErr = v.evalReturnStmt(s) // evalReturnStmt pushes result and returns ReturnValue error wrapper
-			// Error handling below will catch the ReturnValue signal
-		// TODO: Add IfStmt, other statement types later
-		default:
-			return nil, fmt.Errorf("unsupported statement type in block: %T", s)
-		}
-
-		// --- Error Handling ---
-		if evalErr != nil {
-			// Check if it's our special return signal
-			var retVal *ReturnValue
-			if errors.As(evalErr, &retVal) {
-				// It was a return statement. Propagate the return value up.
-				return retVal.Value, ErrReturnSignal // Return the captured value and the signal
-			}
-			// Otherwise, it's a real error
-			return nil, evalErr
-		}
-
-		// --- Implicit Sequential Composition ---
-		// fmt.Printf("DEBUG evalBlockStmt: After Stmt %T. currentStmtOutcome: %T, blockResult: %T\n", stmt, currentStmtOutcome, blockResult) // Debug
-		if currentStmtOutcome == nil {
-			// Statement didn't produce an outcome to compose (e.g., just an assignment might conceptually do this, though ours pops)
-			// Or it was the return statement handled above.
-			// If blockResult is also nil, there's nothing to compose yet.
-			// If blockResult is not nil, we just continue with the existing blockResult.
-			// fmt.Printf("DEBUG evalBlockStmt: No outcome from stmt %T, continuing.\n", stmt) // Debug
-			continue
-		}
-
-		if isFirstStatement {
-			blockResult = currentStmtOutcome
-			isFirstStatement = false
-		} else {
-			// Ensure blockResult is not nil before combining
-			if blockResult == nil {
-				// This means we had no initial context and the first statement didn't produce an outcome.
-				// This shouldn't happen based on current logic, but handle defensively.
-				return nil, fmt.Errorf("internal error: trying implicit AND with nil blockResult")
-			}
-
-			// Combine previous blockResult THEN currentStmtOutcome
-			// Call helper to combine and reduce
-			combinedResult, err := v.combineOutcomesAndReduce(blockResult, currentStmtOutcome)
-			if err != nil {
-				return nil, fmt.Errorf("implicit AND failed in block: %w", err)
-			}
-			// Update blockResult directly, don't push/pop here
-			blockResult = combinedResult // Update block result directly
-		}
-	} // End loop over statements
-
-	// If the block was empty or only contained assignments/non-outcome statements,
-	// return a default "identity" outcome (Success=true, Latency=0)?
-	if blockResult == nil {
-		// Create default AccessResult outcome
-		identity := (&core.Outcomes[core.AccessResult]{}).Add(1.0, core.AccessResult{Success: true, Latency: 0})
-		identity.And = core.AndAccessResults
-		blockResult = identity
-		// It's debatable whether an empty block should have a result. Pushing identity for now.
-		// This might need adjustment based on how function calls expect results.
-	}
-
-	// The final accumulated result of the block
-	return blockResult, nil
-}
-
 // evalAssignmentStmt evaluates the RHS expression, stores the resulting
 // Outcome object in the environment under the variable name, and leaves the
 // result on the stack (for potential use in implicit AND).
 func (v *VM) evalAssignmentStmt(stmt *AssignmentStmt) error {
 	// Evaluate the RHS expression
-	_, err := v.Eval(stmt.Value)
+	resultState, err := v.Eval(stmt.Value)
 	if err != nil {
+		// Check for ReturnValue signal propagation
+		var retVal *ReturnValue
+		if errors.As(err, &retVal) {
+			// A return occurred during RHS evaluation. Need to propagate.
+			// The actual result is in retVal.Value (*VarState)
+			stateToStore := retVal.Value
+			if stateToStore != nil {
+				v.env.Set(stmt.Variable.Name, stateToStore.ValueOutcome, stateToStore.LatencyOutcome)
+				v.push(stateToStore) // Push the state before returning signal
+			}
+			return err // Return the state AND the signal error
+		}
+		// Otherwise, it's a real evaluation error
 		return fmt.Errorf("error evaluating assignment value for '%s': %w", stmt.Variable.Name, err)
 	}
 
-	// Peek the result from the stack (don't pop yet, needed for implicit AND)
-	valueOutcome, ok := v.peek()
-	if !ok {
-		// Should not happen if Eval succeeded without error
-		return fmt.Errorf("stack empty after evaluating assignment value for '%s'", stmt.Variable.Name)
+	// Eval succeeded, resultState holds the VarState
+	if resultState == nil {
+		// This shouldn't happen if Eval returns nil state only on error
+		return fmt.Errorf("internal error: Eval returned nil VarState without error for assignment '%s'", stmt.Variable.Name)
 	}
 
-	// Store the value (the Outcome object) in the environment
-	v.env.Set(stmt.Variable.Name, valueOutcome)
+	// Store the value and latency outcomes from the VarState in the environment
+	v.env.Set(stmt.Variable.Name, resultState.ValueOutcome, resultState.LatencyOutcome)
+	v.push(resultState)
 
+	// Return the evaluated state (as assignments can be part of sequences)
 	return nil
 }
 
-// evalReturnStmt evaluates the return expression, pushes the result onto the stack,
-// and returns a special ReturnValue error wrapper containing the result.
+// evalExprStmt evaluates the expression and pushes its result state onto the stack.
+// Returns only an error (including ReturnValue signal).
+func (v *VM) evalExprStmt(stmt *ExprStmt) error {
+	// Evaluate the expression
+	resultState, err := v.Eval(stmt.Expression)
+	if err != nil {
+		// Check for ReturnValue signal propagation
+		var retVal *ReturnValue
+		if errors.As(err, &retVal) {
+			if retVal.Value != nil {
+				v.push(retVal.Value)
+			} // Push state before returning signal
+			return err // Propagate signal
+		}
+		return fmt.Errorf("error evaluating expression statement: %w", err) // Real error
+	}
+
+	if resultState == nil {
+		return fmt.Errorf("internal error: Eval returned nil state without error for expression statement")
+	}
+
+	// Push the result onto the stack
+	v.push(resultState)
+	return nil // Success
+}
+
+// evalReturnStmt evaluates the return expression, wraps the resulting VarState
+// in a ReturnValue error signal, and returns both.
 func (v *VM) evalReturnStmt(stmt *ReturnStmt) error {
 	// Evaluate the return value expression
-	_, err := v.Eval(stmt.ReturnValue)
+	resultState, err := v.Eval(stmt.ReturnValue)
 	if err != nil {
-		return fmt.Errorf("error evaluating return value: %w", err)
-	}
-
-	// Get the result from the stack
-	retValOutcome, ok := v.peek() // Peek, don't pop, the Eval caller will handle it
-	if !ok {
-		// Should not happen if Eval succeeded without error
-		return fmt.Errorf("stack empty after evaluating return value")
-	}
-
-	// Wrap the result in our special error type to signal return
-	return &ReturnValue{Value: retValOutcome} // Return the wrapper
-}
-
-// evalExprStmt evaluates an expression statement. The result is pushed onto the stack
-// and becomes the input for the next step in implicit sequential composition.
-func (v *VM) evalExprStmt(stmt *ExprStmt) error {
-	// Evaluate the expression, result is left on stack
-	_, err := v.Eval(stmt.Expression)
-	if err != nil {
-		return fmt.Errorf("error evaluating expression statement: %w", err)
-	}
-	// Result remains on the stack for evalBlockStmt to handle composition
-	return nil
-}
-
-var (
-	ErrInvalidConditionType = errors.New("if condition must evaluate to *core.Outcomes[bool] or access .Success field")
-	ErrConditionSplitFailed = errors.New("failed to split outcome based on condition")
-)
-
-// selectSplitPredicate dynamically creates the predicate function for core.Split
-// based on the Condition expression. Currently supports direct boolean outcomes
-// or accessing the '.Success' field of an AccessResult outcome.
-func selectSplitPredicate(conditionExpr Expr, conditionOutcome any) (func(v any) bool, error) {
-	// Case 1: Condition is direct boolean outcome
-	if _, ok := conditionOutcome.(*core.Outcomes[bool]); ok {
-		return func(v any) bool {
-			b, _ := v.(bool) // Assume type assertion works if we got here
-			return b
-		}, nil
-	}
-
-	// Case 2: Condition is accessing '.Success' (e.g., myVar.Success)
-	if memExpr, ok := conditionExpr.(*MemberAccessExpr); ok && memExpr.Member == "Success" {
-		// We need to check the *type* of the outcome associated with the receiver (myVar)
-		// The `conditionOutcome` here IS that outcome.
-		if _, ok := conditionOutcome.(*core.Outcomes[core.AccessResult]); ok {
-			return func(v any) bool {
-				ar, _ := v.(core.AccessResult) // Assume type assertion works
-				return ar.Success
-			}, nil
+		// Check for return propagation from within the expression
+		var retVal *ReturnValue
+		if errors.As(err, &retVal) {
+			if retVal.Value != nil {
+				v.push(retVal.Value)
+			} // Push nested return value
+			return err // Propagate the nested signal
 		}
-		// Add checks for RangedResult .Success?
-		// if _, ok := conditionOutcome.(*core.Outcomes[core.RangedResult]); ok { ... }
+		return fmt.Errorf("error evaluating return value: %w", err) // Real error
 	}
 
-	// If neither matches, the condition isn't supported yet
-	return nil, fmt.Errorf("%w: expression %q (%T outcome) not supported", ErrInvalidConditionType, conditionExpr.String(), conditionOutcome)
+	if resultState == nil {
+		return fmt.Errorf("internal error: Eval returned nil state without error for return value")
+	}
+
+	// Push the result state onto the stack
+	v.push(resultState)
+
+	// Wrap the result state in our special error type to signal return
+	returnSignal := &ReturnValue{Value: resultState, Err: ErrReturnSignal}
+
+	// Return the signal wrapper error
+	return returnSignal
 }
+
+// Helper function to create a default identity state (e.g., for empty blocks or start)
+// We need a concrete value type, bool=true seems reasonable for a neutral start.
+func createIdentityState() *VarState {
+	return &VarState{
+		ValueOutcome:   identityValueOutcome(), // Uses helper returning Outcomes[bool]{1.0=>true}
+		LatencyOutcome: zeroLatencyOutcome(),   // Uses helper returning Outcomes[Duration]{1.0=>0}
+	}
+}
+
+// evalBlockStmt executes a sequence of statements within a given environment.
+// It handles the implicit sequential 'And' composition using the dual tracks.
+// Returns the VarState outcome of the *last* effectively executed statement/expression.
+// If a ReturnStmt is encountered, it returns the returned VarState and the ReturnValue error.
+func (v *VM) evalBlockStmt(block *BlockStmt, env *Environment, initialContext *VarState) (*VarState, error) {
+	// Initialize stack for this block's execution? Or assume caller manages stack?
+	// Let's assume the block operates on the current stack. Caller ensures clean state if needed.
+
+	// Push initial context onto the stack if provided (acts as first operand)
+	stackStartLen := len(v.stack) // Remember stack depth at start
+	if initialContext != nil {
+		v.push(initialContext)
+	} else {
+		// Push identity state if no context provided?
+		v.push(createIdentityState())
+	}
+
+	// fmt.Printf("DEBUG evalBlockStmt Start: Initial Stack Len=%d, Top=%v\n", len(v.stack), v.peek()) // Debug
+
+	for i, stmt := range block.Statements {
+		// Remember stack depth before evaluating statement
+		// stackDepthBeforeStmt := len(v.stack)
+
+		// Evaluate the statement. It might push a result. It returns error/signal.
+		evalErr := error(nil)
+		switch s := stmt.(type) {
+		// Call specific eval*Stmt funcs (which now return only error)
+		case *AssignmentStmt:
+			evalErr = v.evalAssignmentStmt(s)
+		case *ExprStmt:
+			evalErr = v.evalExprStmt(s)
+		case *ReturnStmt:
+			evalErr = v.evalReturnStmt(s)
+		case *IfStmt:
+			evalErr = v.evalIfStmt(s) // If also needs update
+		// case *DelayStmt: // Example if delay is a statement
+		//  evalErr = v.evalDelayStmt(s) // This would likely pop, combine latency, push back
+		default:
+			// Clean up stack before returning error
+			v.stack = v.stack[:stackStartLen]
+			return nil, fmt.Errorf("unsupported statement type in block: %T", s)
+		}
+
+		// --- Error Handling ---
+		if evalErr != nil {
+			var retVal *ReturnValue
+			if errors.As(evalErr, &retVal) {
+				// A return occurred. The return value is on TOP of the stack.
+				// Pop everything else pushed *during this block's execution*
+				// leaving ONLY the return value.
+				if len(v.stack) > stackStartLen {
+					// Pop items until only the one pushed by the return sequence remains
+					// The state returned by the stmt is already wrapped in retVal
+					// We need to ensure the stack *only* contains that state.
+					// Pop the item pushed by the return eval itself.
+					returnedStateFromStack, popErr := v.pop()
+					if popErr != nil || returnedStateFromStack != retVal.Value {
+						// This indicates a major inconsistency
+						v.stack = v.stack[:stackStartLen] // Attempt cleanup
+						return nil, fmt.Errorf("internal error: stack state inconsistent after return signal")
+					}
+				} else {
+					// Return occurred without pushing? Should not happen.
+					v.stack = v.stack[:stackStartLen] // Attempt cleanup
+					return nil, fmt.Errorf("internal error: return signal occurred but stack state is too shallow")
+				}
+
+				// Clean stack below the return value (if any were pushed before return)
+				v.stack = v.stack[:stackStartLen]
+				// Push the actual return value back
+				v.push(retVal.Value)
+
+				// Propagate signal
+				return retVal.Value, evalErr
+			}
+			// Otherwise, it's a real error. Clean up stack.
+			v.stack = v.stack[:stackStartLen]
+			return nil, fmt.Errorf("error executing statement %d (%T): %w", i, stmt, evalErr)
+		}
+
+		// --- Implicit Sequential Composition via Stack ---
+		// After a statement executes successfully AND pushed a result,
+		// check if we need to combine it with the previous result.
+		// Combine if stack > initialDepth + 1 (meaning at least two results from this block are present)
+		// Let's adjust: Combine if stack has >= 2 items *total* (simpler logic)
+		// --- This needs refinement --- Combine only the results relevant to this block's sequence.
+		// How many items did the statement push? Assume 1 for now (Assignment, ExprStmt, If).
+		// If stack depth is now > stackStartLen + 1, it means we have the result from the *previous*
+		// iteration AND the result from the *current* iteration. Combine them.
+
+		if len(v.stack) >= stackStartLen+2 { // We have previous result + current result
+			// fmt.Printf("DEBUG evalBlockStmt Combine Triggered: Stack Len=%d\n", len(v.stack)) // Debug
+			stateB, _ := v.pop() // Current statement result
+			stateA, _ := v.pop() // Previous statement result (or initial context)
+
+			combinedState, combineErr := v.combineOutcomesAndReduce(stateA, stateB)
+			if combineErr != nil {
+				v.stack = v.stack[:stackStartLen] // Clean up
+				return nil, fmt.Errorf("implicit AND failed after statement %d (%T): %w", i, stmt, combineErr)
+			}
+			v.push(combinedState) // Push combined result back
+		} else if len(v.stack) == stackStartLen {
+			// Statement didn't push a result (e.g., maybe a future 'break' or 'continue'?)
+			// Or internal error. For now, assume statements relevant to sequence push one result.
+			fmt.Printf("Warning: Statement %T completed without pushing result to stack?\n", stmt)
+		}
+
+		// fmt.Printf("DEBUG evalBlockStmt End Iter %d (%T): Stack Len=%d, Top=%v\n", i, stmt, len(v.stack), v.peek()) // Debug
+
+	} // End loop over statements
+
+	// Block finished normally. The final result is the single item left on the stack
+	// relative to where this block started.
+	finalStackDepth := len(v.stack)
+	if finalStackDepth != stackStartLen+1 {
+		// If stack depth is wrong, something went wrong with push/pop/combine logic
+		v.stack = v.stack[:stackStartLen] // Attempt cleanup
+		return nil, fmt.Errorf("internal error: block ended with unexpected stack depth %d (expected %d). Stack: %s", finalStackDepth, stackStartLen+1, v.stackString())
+	}
+
+	finalState, _ := v.pop() // Pop the final result for returning
+	return finalState, nil   // Return final state, nil error
+}
+
+/*
+
 
 // evalIfStmt handles conditional execution.
 // It evaluates the condition, splits the relevant outcome distribution,
@@ -412,3 +437,4 @@ func (v *VM) evalIfStmt(stmt *IfStmt) error {
 
 	return nil
 }
+*/

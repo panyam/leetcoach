@@ -10,7 +10,7 @@ This package provides concrete Go implementations of common distributed system c
 2.  **Component Models (Go Structs):**
     *   Implementations for `Disk`, `Cache`, `Queue` (M/M/c/K), `MM1Queue`, `ResourcePool`, `BTreeIndex`, `HashIndex`, `LSMTree`, `NetworkLink`, `Batcher`, `BitmapIndex`, `HeapFile`, `SortedFile`.
     *   Provide `Init()` or `New...()` constructors.
-    *   Operation methods (`Read`, `Write`, `Acquire`, `Submit`, etc.) return `*core.Outcomes[V]`. **Note:** Under the target Model V4 DSL, these methods will need adjustment or VM wrappers to align with the DSL's expectation of returning `(valueOutcome any, latencyOutcome any, error)` implicitly representing the dual tracks. Currently, they mostly return `*core.Outcomes[AccessResult]` or `*core.Outcomes[Duration]`.
+    *   Operation methods (`Read`, `Write`, `Acquire`, `Submit`, etc.) return `*core.Outcomes[V]`. **Note:** Under the target Model V4 DSL, these methods will need adaptation or VM wrappers to align with the DSL's expectation of processing dual value/latency tracks. Currently, they mostly return `*core.Outcomes[AccessResult]` or `*core.Outcomes[Duration]`.
     *   Internal logic often involves composing core primitives (e.g., `Disk.Read()`).
 
 3.  **Stateless Analytical Models:**
@@ -29,4 +29,5 @@ This package provides concrete Go implementations of common distributed system c
 *   Provides a comprehensive suite of standard system components with performance models based on `sdl/core`.
 *   Key flow components use stateless analytical models.
 *   The `decl` sub-package provides AST generation for the DSL front-end.
-*   **Pending Refactoring:** Component operation methods need review and potential modification (or VM adaptation) to fit the dual-track `(value, latency)` return model expected by the Model V4 VM design, separating functional return values from latency outcomes. Currently, many return `Outcomes[AccessResult]`, bundling success and latency.
+*   Component models are well-tested via the Go API using `core.Analyze`.
+*   **Pending Refactoring/VM Adaptation:** Component operation methods need review/adaptation for the dual-track `(value, latency)` processing model expected by the Model V4 VM design. The current return types (`*core.Outcomes[V]`) need to be handled appropriately by the VM/Driver (likely via wrappers during component registration in the VM).

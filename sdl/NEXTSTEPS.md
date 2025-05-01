@@ -1,86 +1,78 @@
-# SDL Project - Next Steps
+# SDL Project - Next Steps (Bytecode VM Focus)
 
-**Overall Goal:** Implement the core functionality of the DSL execution engine (VM + Bytecode Compiler) based on the **Hybrid execution model** and targeting the **Model V4 DSL syntax** (Implicit Dual Track, Discrete Values, Explicit Delay).
+**Overall Goal:** Implement the core functionality of the DSL execution engine (VM + Compiler) based on the **Hybrid Bytecode execution model** and targeting the **Model V4 DSL syntax** (Implicit Dual Track, Discrete Values, Explicit Delay).
 
-**Phase 1: Core VM Refactoring & Primitives (Partially Complete -> Continue)**
+**Phase 1: VM Handler Implementation & Core Logic (Current Focus)**
 
-*Goal: Ensure the VM correctly handles the dual-track state, basic expressions, sequence, and the core Model V4 primitives (`delay`, `distribute`).*
+*Goal: Flesh out the VM's Go handlers (`vm_handle_*`) called by `OpCallFunc` to correctly implement arithmetic, boolean logic, sequence combination, and explicit delay for the dual-track `VarState`.*
 
-1.  **Implement `core.SplitLatenciesBasedOnValue`:** **(Critical Blocker)** Implement this helper in `sdl/core` to correctly split `Outcomes[Duration]` based on a predicate applied to a synchronized `Outcomes[V]` (using iteration, not reflection if possible by adding helpers to Outcomes). Add thorough tests.
-2.  **Test `evalIfStmt` / `evalBlockStmt`:** Complete testing in `dsl/vm_test.go` now that prerequisites are clearer. Verify dual-track combination and splitting logic.
-3.  **Implement `evalDelayStmt`:** Add `DelayStmt` to `ast.go`. Implement the evaluator in `dsl/eval_stmt.go`. It should:
-    *   Evaluate the duration expression.
-    *   Pop the current state from the stack (if block sequence).
-    *   Combine latencies (`And`).
-    *   Push new state (original value, combined latency).
-    *   Add tests.
-4.  **Implement `evalDistributeStmt`:** Add `DistributeStmt`, `DistributeCase`, `DefaultCase` to `ast.go`. Implement the evaluator (`evalDistributeStmt`) in `dsl/dsl_controlflow.go` (new file suggested).
-    *   Evaluate probabilities.
-    *   Split incoming context (`value` + `latency`) based on probabilities.
-    *   Recursively call `evalBlockStmt` for each branch with its split context.
-    *   Combine results from branches using weighted `Append` logic (needs careful implementation for both tracks).
-    *   Push the final combined state.
-    *   Add tests for probabilistic branching and result combination.
+1.  **Implement Arithmetic Handlers (`vm_handle_add`, `_subtract`, `_multiply`, `_divide`, `_negate`):**
+    *   **Task:** In `dsl/vm.go`, implement the logic within these handlers. They need to:
+        *   Pop the required number of `*VarState` operands from the stack.
+        *   Perform type checking (e.g., expect `*Outcomes[int64]` or `*Outcomes[float64]`). Handle type errors.
+        *   Ensure operands are deterministic (`GetValue()`). Handle errors if not (for now).
+        *   Perform the arithmetic operation on the deterministic values.
+        *   Combine the latency tracks of the operands using `combineOutcomesAndReduce` (or just its latency part).
+        *   Create a new `VarState` with the computed value outcome (wrapped) and the combined latency outcome.
+        *   Push the resulting `VarState` back onto the stack.
+    *   **Testing:** Add specific tests in `dsl/vm_exec_test.go` for each arithmetic operation, checking both value and combined latency. Unskip `TestExecuteChunk_BinaryAdd`.
 
-**Phase 2: Function/Method Calls & Component Interaction**
+2.  **Implement Boolean/Comparison Handlers (`vm_handle_not`, `_equal`, `_notEqual`, `_greater`, `_less`, etc., `_and`, `_or`):**
+    *   **Task:** Similar to arithmetic handlers, implement the logic: Pop operands, check types (bool, or comparable types), perform deterministic comparison/logic, combine latency tracks, create and push result `VarState` (`*Outcomes[bool]` value).
+    *   **Testing:** Add tests for boolean logic and comparisons.
 
-*Goal: Enable calling component methods and user-defined operations within the DSL.*
+3.  **Refine `vm_handle_and_seq` and `vm_handle_delay`:**
+    *   **Task:** Ensure these handlers correctly use `combineOutcomesAndReduce` (or alternatives if value propagation changes) for the dual tracks. Verify latency combination logic.
+    *   **Testing:** Unskip and ensure `TestExecuteChunk_SimpleSequence` passes (once `DurationMS` handler registration is sorted in tests). Add more sequence tests.
 
-1.  **Refactor Component Methods / Add VM Wrappers:** Decide on strategy:
-    *   Option A: Modify Go methods in `sdl/components` (e.g., `Disk.Read`) to return `(valueOutcome any, latencyOutcome any, error)`. Requires changes across `components`.
-    *   Option B: Keep component methods returning `*core.Outcomes[V]`. Create wrappers *within the VM/Driver* during component registration that translate the `*Outcomes[V]` result into the dual-track `*VarState` expected by the VM. This isolates changes. (Recommendation: Option B seems less intrusive).
-2.  **Implement `evalCallExpr`:**
-    *   Handle resolving function/method names (global built-ins, component methods).
-    *   Evaluate arguments (must be deterministic).
-    *   Invoke the Go method/function (potentially via the VM wrapper from step 1).
-    *   Handle the returned `(value, latency)` tuple (or the wrapped `VarState`) correctly.
-    *   Handle `ReturnValue` signal propagation.
-    *   Add tests calling actual component methods (like `Disk.Read`).
-3.  **Implement `OperationDef` Evaluation:** Allow user-defined operations within components to be called. This involves setting up a new environment frame, passing arguments, executing the operation's `BlockStmt` bytecode/AST, and handling the `ReturnStmt`.
+**Phase 2: Probabilistic Control Flow & Core Helper**
 
-**Phase 3: Basic Bytecode Compiler & Hybrid VM Loop**
+*Goal: Implement the complex logic for `if` and `distribute`, requiring the core latency splitting helper.*
 
-*Goal: Implement a simple compiler and update the VM to execute basic bytecode, delegating complex flow to Go helpers.*
+1.  **Implement `core.SplitLatenciesBasedOnValue`:** **(Critical Blocker)**
+    *   **Task:** Implement this helper function in `sdl/core`. Design it to efficiently split `Outcomes[Duration]` based on a predicate applied to a synchronized `Outcomes[V]` without reflection if feasible (may require helpers on `Outcomes`).
+    *   **Testing:** Add thorough unit tests in `sdl/core`.
 
-1.  **Define Bytecode Opcodes:** Finalize the initial set of opcodes (PUSH_CONST, LOAD/STORE_VAR, basic Arithmetic/Boolean ops, CALL_METHOD, RET, AND_SEQ, DELAY_OP, CALL_VM_IF, CALL_VM_DISTRIBUTE, etc.).
-2.  **Implement Compiler (`dsl/compiler.go`):**
-    *   Input: AST (`*dsl.File` or specific nodes).
-    *   Output: Bytecode sequence (`[]byte` or `[]Instruction`), Constant Pool.
-    *   Start by compiling simple expressions (literals, identifiers, binary/unary ops) and statements (`LetStmt`, `ExprStmt`, `ReturnStmt`, `DelayStmt`).
-    *   Emit `CALL_VM_*` opcodes for `if`/`distribute`.
-    *   Handle basic environment/scope mapping (variable slots).
-3.  **Implement Bytecode VM Loop (`dsl/vm_exec.go`):**
-    *   Takes bytecode and constant pool.
-    *   Fetches, decodes, executes instructions.
-    *   Manages instruction pointer (IP) and stack (holding `*VarState`).
-    *   Implement execution logic for initial opcodes.
-    *   When `CALL_VM_*` opcode is hit, call the corresponding Go `eval*` function (passing necessary context/bytecode offsets). These Go functions might recursively call the bytecode loop for sub-blocks.
-4.  **Update Driver:** Modify `RunDSL` to compile AST to bytecode and then execute using the bytecode VM loop.
-5.  **Tests:** Add tests specifically for the compiler (AST -> Bytecode) and the bytecode execution loop (Bytecode -> Correct Stack/Env State).
+2.  **Implement `vm_handle_if`:**
+    *   **Task:** This Go helper function (called by `OpCallFunc HandlerIf`, likely needing the jump offsets passed somehow or read from subsequent instructions) needs to:
+        *   Pop the condition `*VarState` (must be `*Outcomes[bool]`).
+        *   Use `core.SplitLatenciesBasedOnValue` (once available) and `Outcomes[bool].Split` to get `thenVal`, `elseVal`, `thenLat`, `elseLat` outcomes.
+        *   Create `thenContext` and `elseContext` VarStates.
+        *   Recursively call `vm.ExecuteChunk` (or similar) for the `then` bytecode block (using `thenContext`) and the `else` bytecode block (using `elseContext`). These recursive calls return the final `*VarState` for each branch.
+        *   Combine the `thenResultState` and `elseResultState` using weighted `Append` logic for both value and latency tracks.
+        *   Push the final combined `VarState`.
+    *   **Testing:** Add complex `if` tests in `vm_exec_test.go`, verifying probabilistic combination of results and latency.
 
-**Phase 4: Parser Implementation & Integration**
+3.  **Implement `vm_handle_distribute`:**
+    *   **Task:** Similar complexity to `vm_handle_if`. Needs to handle multiple probability cases, split context accordingly, execute branches, and combine results.
+    *   **Testing:** Add `distribute` tests.
 
-*Goal: Allow defining systems directly in DSL files.*
+**Phase 3: Function/Method Calls & Scoping**
 
-1.  **Implement Parser (`dsl/parser.go`):** Use `participle` or similar to parse DSL text based on the defined grammar into the AST (`ast.go`).
-2.  **Integrate Parser:** Update `RunDSL` (or add entry point) to accept file paths/strings, parse them, and execute the resulting AST (via compiler/VM).
-3.  **Examples & Docs:** Rewrite an example using DSL, write initial DSL documentation.
+*Goal: Enable calling component methods and user-defined operations, introducing local scopes.*
 
-**Phase 5: Advanced Features & Refinements**
+1.  **Implement Local Variables & Scoping:**
+    *   **Task:** Add support for local variables. This might involve using stack slots (`OpGetLocal`, `OpSetLocal`) and managing scope entry/exit during block compilation and execution. Update `Compiler` and `VM` execution loop.
+    *   **Testing:** Add tests involving nested blocks and local variable shadowing.
+2.  **Implement `OpCall` / `OpReturn`:**
+    *   **Task:** Implement the VM logic for `OpCall`. This involves looking up the function/method, setting up a new call frame (potentially on the stack or a separate call stack), passing arguments, and transferring control (`ip`). `OpReturn` needs to restore the previous frame and `ip`.
+    *   **Testing:** Add tests for simple function calls (once functions can be defined).
+3.  **Component Method Adaptation / Wrappers:**
+    *   **Task:** Decide on and implement the strategy (modify components or use VM wrappers) to make component methods compatible with the VM's dual-track `VarState` expectation.
+    *   **Testing:** Add tests calling actual component methods (e.g., `Disk.Read`) via `OpCall`.
 
-*   Implement remaining evaluators/opcodes (`Parallel`, `Repeat`, `Fanout`, `Switch`, `Filter`).
-*   Implement `expect` clause evaluation.
-*   Refine error handling and reporting (source positions).
-*   Add more built-in functions.
-*   Performance optimizations (bytecode, VM).
+**Phase 4: Compiler Completeness & Parser**
 
+*Goal: Compile the full AST and parse DSL files.*
 
-**Suggested Next Steps Order:**
+1.  **Complete Compiler:** Implement compilation logic for all remaining AST nodes (`DistributeStmt`, `ParallelStmt`, `RepeatStmt`, `SwitchExpr`, etc.) emitting the appropriate bytecode and `OpCallFunc` / `OpCallVM_*` instructions.
+2.  **Implement Parser (`dsl/parser.go`):** Use `participle` or similar to parse DSL text based on `dsl/GRAMMAR.md` into the `ast.go` structures.
+3.  **Update Driver:** Modify `RunDSL` to accept file paths/strings, invoke the parser, then the compiler, then `vm.ExecuteChunk`.
+4.  **Examples & Docs:** Rewrite an example using DSL, write initial DSL documentation.
 
-1.  **Implement `core.SplitLatenciesBasedOnValue`** + tests. **(Highest Priority)**
-2.  **Test `evalIfStmt` / `evalBlockStmt`** thoroughly using manual ASTs.
-3.  **Implement `evalDelayStmt`** + tests.
-4.  **Implement `evalDistributeStmt`** + tests.
-5.  **Refactor/Wrap Component Methods & Implement `evalCallExpr`**.
-6.  Start **Phase 3 (Basic Bytecode Compiler & Hybrid VM Loop)** for expressions and simple statements.
+**Phase 5: Refinements**
 
+*   Refine `combineOutcomesAndReduce` for accurate value propagation if needed.
+*   Implement `expect` clause evaluation in the Driver/VM.
+*   Improve error handling and reporting (source mapping from bytecode).
+*   Performance optimizations.

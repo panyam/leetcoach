@@ -3,87 +3,21 @@ package dsl
 
 import (
 	"fmt"
-	"strconv" // Need for parseLiteralValue
-
+	// Need for parseLiteralValue
 	// Needed for component constructors & internal funcs
 	"github.com/panyam/leetcoach/sdl/core"
+	"github.com/panyam/leetcoach/sdl/decl"
 )
-
-// --- Analysis Result Wrapper (Reinstated) ---
-// AnalysisResultWrapper holds the raw outcome and calculated metrics for an analyze block.
-type AnalysisResultWrapper struct {
-	Name              string                      // Name from the analyze block
-	Outcome           any                         // The raw *core.Outcomes[V] result
-	Metrics           map[core.MetricType]float64 // Use core.MetricType as key
-	Error             error                       // Any error during analysis evaluation
-	Skipped           bool                        // True if analysis couldn't run (e.g., target error)
-	Messages          []string                    // Log messages during analysis
-	AnalysisPerformed bool                        // Added field similar to core.AnalysisResult
-}
-
-// Helper to add a log message
-func (arw *AnalysisResultWrapper) AddMsg(format string, args ...any) {
-	arw.Messages = append(arw.Messages, fmt.Sprintf(format, args...))
-}
-
-// componentConstructor defines the type for functions that create component instances.
-type ComponentConstructor = func(name string, params map[string]any) (any, error)
-
-// CalculateAndStoreMetrics populates the Metrics map within AnalysisResultWrapper.
-func CalculateAndStoreMetrics(resultWrapper *AnalysisResultWrapper) {
-	if resultWrapper.Outcome == nil {
-		resultWrapper.AnalysisPerformed = false
-		return
-	}
-	// Use type switch to check for known Metricable outcome types
-	switch o := resultWrapper.Outcome.(type) {
-	case *core.Outcomes[core.AccessResult]:
-		resultWrapper.Metrics[core.AvailabilityMetric] = core.Availability(o)
-		resultWrapper.Metrics[core.MeanLatencyMetric] = core.MeanLatency(o)
-		resultWrapper.Metrics[core.P50LatencyMetric] = core.PercentileLatency(o, 0.50)
-		resultWrapper.Metrics[core.P99LatencyMetric] = core.PercentileLatency(o, 0.99)
-		resultWrapper.Metrics[core.P999LatencyMetric] = core.PercentileLatency(o, 0.999)
-		resultWrapper.AnalysisPerformed = (o != nil && o.Len() > 0)
-	case *core.Outcomes[core.RangedResult]:
-		resultWrapper.Metrics[core.AvailabilityMetric] = core.Availability(o)
-		resultWrapper.Metrics[core.MeanLatencyMetric] = core.MeanLatency(o)
-		resultWrapper.Metrics[core.P50LatencyMetric] = core.PercentileLatency(o, 0.50)
-		resultWrapper.Metrics[core.P99LatencyMetric] = core.PercentileLatency(o, 0.99)
-		resultWrapper.Metrics[core.P999LatencyMetric] = core.PercentileLatency(o, 0.999)
-		resultWrapper.AnalysisPerformed = (o != nil && o.Len() > 0)
-	// Add other Metricable types here
-	default:
-		resultWrapper.AddMsg("Cannot calculate metrics for outcome type %T", o)
-		resultWrapper.AnalysisPerformed = false // Cannot calculate metrics
-	}
-}
-
-// ParseLiteralValue converts a LiteralExpr value string to a basic Go type.
-func ParseLiteralValue(lit *LiteralExpr) (any, error) {
-	switch lit.Kind {
-	case "STRING":
-		return lit.Value, nil
-	case "INT":
-		return strconv.ParseInt(lit.Value, 10, 64)
-	case "FLOAT":
-		return strconv.ParseFloat(lit.Value, 64)
-	case "BOOL":
-		return strconv.ParseBool(lit.Value)
-	// TODO: case "DURATION":
-	default:
-		return nil, fmt.Errorf("cannot parse literal kind %s yet", lit.Kind)
-	}
-}
 
 // RunDSL executes the logic defined in an AST, focusing on System and Analyze blocks.
 // Returns a map of analysis names to their corresponding AnalysisResultWrapper.
-func RunDSL(vm *VM, astRoot Node /* options? */) (map[string]*AnalysisResultWrapper, error) {
-	analysisResults := make(map[string]*AnalysisResultWrapper)
+func RunDSL(vm *VM, astRoot decl.Node /* options? */) (map[string]*decl.AnalysisResultWrapper, error) {
+	analysisResults := make(map[string]*decl.AnalysisResultWrapper)
 
 	// --- Basic Setup ---
-	systemDecl, ok := astRoot.(*SystemDecl)
+	system, ok := astRoot.(*decl.System)
 	if !ok {
-		return analysisResults, fmt.Errorf("RunDSL currently expects *SystemDecl as root, got %T", astRoot)
+		return analysisResults, fmt.Errorf("RunDSL currently expects *System as root, got %T", astRoot)
 	}
 
 	if vm == nil {
@@ -95,51 +29,51 @@ func RunDSL(vm *VM, astRoot Node /* options? */) (map[string]*AnalysisResultWrap
 	vm.env = systemEnv // Switch to system env for instantiation
 
 	// Instantiate components
-	for _, node := range systemDecl.Body {
-		instanceDecl, isInstance := node.(*InstanceDecl)
+	for _, node := range system.Body {
+		instance, isInstance := node.(*decl.Instance)
 		if !isInstance {
 			continue
 		}
 		// ... (Instantiation logic remains the same) ...
-		constructorRaw, typeFound := systemEnv.Get(instanceDecl.ComponentType)
+		constructorRaw, typeFound := systemEnv.Get(instance.ComponentType)
 		if !typeFound {
 			// Store error and continue? Or return immediately? Return for now.
-			err := fmt.Errorf("component type '%s' not found for instance '%s'", instanceDecl.ComponentType, instanceDecl.Name)
+			err := fmt.Errorf("component type '%s' not found for instance '%s'", instance.ComponentType, instance.Name)
 			// We don't have a result wrapper yet to store this error in.
 			return analysisResults, err
 		}
 		constructor, isConstructor := constructorRaw.(ComponentConstructor)
 		if !isConstructor {
-			err := fmt.Errorf("type '%s' is not a constructible component", instanceDecl.ComponentType)
+			err := fmt.Errorf("type '%s' is not a constructible component", instance.ComponentType)
 			return analysisResults, err
 		}
 		params := make(map[string]any)
-		for _, p := range instanceDecl.Params {
+		for _, p := range instance.Params {
 			if lit, okLit := p.Value.(*LiteralExpr); okLit {
 				parsedVal, err := ParseLiteralValue(lit)
 				if err != nil {
-					return analysisResults, fmt.Errorf("error parsing param '%s' for instance '%s': %w", p.Name, instanceDecl.Name, err)
+					return analysisResults, fmt.Errorf("error parsing param '%s' for instance '%s': %w", p.Name, instance.Name, err)
 				}
 				params[p.Name] = parsedVal
 			} else {
-				return analysisResults, fmt.Errorf("parameter '%s' for instance '%s' must be a literal (for now)", p.Name, instanceDecl.Name)
+				return analysisResults, fmt.Errorf("parameter '%s' for instance '%s' must be a literal (for now)", p.Name, instance.Name)
 			}
 		}
-		instanceObj, err := constructor(instanceDecl.Name, params)
+		instanceObj, err := constructor(instance.Name, params)
 		if err != nil {
-			return analysisResults, fmt.Errorf("error constructing instance '%s': %w", instanceDecl.Name, err)
+			return analysisResults, fmt.Errorf("error constructing instance '%s': %w", instance.Name, err)
 		}
-		systemEnv.Set(instanceDecl.Name, instanceObj)
+		systemEnv.Set(instance.Name, instanceObj)
 	} // End instantiation loop
 
 	// Run Analyze blocks
-	for _, node := range systemDecl.Body {
-		analyzeDecl, isAnalyze := node.(*AnalyzeDecl)
+	for _, node := range system.Body {
+		analyze, isAnalyze := node.(*Analyze)
 		if !isAnalyze {
 			continue
 		}
 
-		analysisName := analyzeDecl.Name
+		analysisName := analyze.Name
 		// Create the result wrapper
 		resultWrapper := &AnalysisResultWrapper{
 			Name:    analysisName,
@@ -151,7 +85,7 @@ func RunDSL(vm *VM, astRoot Node /* options? */) (map[string]*AnalysisResultWrap
 		vm.ClearStack() // Ensure clean stack
 
 		// Evaluate the target expression
-		_, evalErr := vm.Eval(analyzeDecl.Target)
+		_, evalErr := vm.Eval(analyze.Target)
 
 		if evalErr != nil {
 			resultWrapper.AddMsg("Evaluation error: %v", evalErr)

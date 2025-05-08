@@ -615,59 +615,61 @@
       <div
         class="view-actions p-2 border-b border-gray-200 dark:border-gray-700 mb-2 flex items-center space-x-2 flex-shrink-0"
       >
+        <button type="button" class="section-validate-dsl ...">
+          Validate DSL
+        </button>
+        <!-- Keep this -->
+
+        <!-- Change Generate button text -->
         <button
           type="button"
-          class="section-validate-dsl px-3 py-1 text-sm font-medium text-white bg-green-600 hover:bg-green-700 border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 flex items-center"
+          class="section-generate-diagram px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-200 dark:hover:bg-gray-500 flex items-center"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-4 w-4 mr-1"
             fill="none"
-            viewBox="0 0 20 20"
+            viewBox="0 0 24 24"
+            stroke-width="1.5"
             stroke="currentColor"
           >
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
             />
           </svg>
-          Validate DSL
+          Generate/Refresh Diagram
         </button>
-        <button
-          type="button"
-          class="section-generate-diagram px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-200 dark:hover:bg-gray-500 disabled:opacity-50"
-          disabled
-          title="Generate Diagram (Coming Soon)"
-        >
-          Generate Diagram
-        </button>
-        <button
-          type="button"
-          class="section-run-analysis px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-200 dark:hover:bg-gray-500 disabled:opacity-50"
-          disabled
-          title="Run Analysis (Coming Soon)"
-        >
+        <button type="button" class="section-run-analysis ..." disabled>
           Run Analysis
         </button>
+        <!-- Keep disabled -->
       </div>
 
-      <!-- Preformatted block for code -->
-      <div class="flex-grow overflow-auto">
-        <!-- Allow code block to scroll if needed -->
+      <!-- Code Display Area -->
+      <div class="flex-shrink-0 mb-4">
+        <!-- Make code area non-growing initially -->
         <pre
-          class="bg-gray-100 dark:bg-gray-900 p-4 rounded text-sm font-mono text-gray-800 dark:text-gray-200 h-full"
+          class="bg-gray-100 dark:bg-gray-900 p-4 rounded overflow-x-auto text-sm font-mono text-gray-800 dark:text-gray-200 max-h-80 overflow-y-auto"
         ><code class="language-dsl"></code></pre>
+        <!-- Add max-h and overflow -->
       </div>
 
-      <!-- Placeholders for diagram and analysis results -->
-      <div id="generated-diagram-container" class="mt-4 border-t pt-4 hidden">
-        <!-- Hidden for now -->
-        Diagram Placeholder
+      <!-- Diagram Display Area (Initially hidden or showing placeholder) -->
+      <div
+        id="generated-diagram-container"
+        class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 flex-grow flex flex-col items-center justify-center min-h-[200px]"
+      >
+        <!-- Use flex-grow -->
+        <p class="text-gray-500 dark:text-gray-400 italic">
+          Click "Generate/Refresh Diagram" to view.
+        </p>
+        <!-- Diagram SVG/Content will be inserted here by JS -->
       </div>
+
+      <!-- Placeholder for analysis results (keep hidden) -->
       <div id="analysis-results-container" class="mt-4 border-t pt-4 hidden">
-        <!-- Hidden for now -->
         Analysis Results Placeholder
       </div>
     </div>

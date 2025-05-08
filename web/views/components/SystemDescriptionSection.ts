@@ -3,7 +3,7 @@
 import { ContentApi, SystemModelApi } from './Api';
 import { BaseSection } from './BaseSection';
 import { SectionData, SectionContent, SectionCallbacks, SystemDescriptionContent } from './types';
-import { V1ValidateDSLResponse } from './apiclient'; // <-- Import response type
+import { V1ValidateDSLResponse, V1GenerateDiagramResponse } from './apiclient'; // <-- Import response type
 
 export class SystemDescriptionSection extends BaseSection {
     // Simple code icon (like a semicolon in braces)
@@ -12,10 +12,13 @@ export class SystemDescriptionSection extends BaseSection {
     private dslContent: SystemDescriptionContent = ''; // Store the DSL string
     private textAreaElement: HTMLTextAreaElement | null = null; // <-- Reference to textarea
 
+    // New elements for Diagram display
+    private diagramContainer: HTMLDivElement | null = null;
+    private isDiagramLoading: boolean = false; // State for diagram loading
+
     constructor(data: SectionData, element: HTMLElement, callbacks: SectionCallbacks = {}) {
         super(data, element, callbacks);
         // No special initialization needed here for Phase 1
-        this._bindViewModeActions();
     }
 
     // Override _bindEvents to ensure edit mode validation button is also captured if needed
@@ -35,22 +38,6 @@ export class SystemDescriptionSection extends BaseSection {
     }
 
 
-    // Bind actions specific to view mode action bar
-    private _bindViewModeActions(): void {
-        this.element.addEventListener('click', (event: MouseEvent) => {
-            if (this.mode !== 'view') return; // Only act in view mode
-
-            const target = event.target as HTMLElement;
-            const validateButton = target.closest('.view-actions .section-validate-dsl');
-            // Add listeners for generate/analyze buttons here when implemented
-
-            if (validateButton) {
-                 console.log("Validate button clicked in VIEW mode");
-                 this.handleValidateClick(validateButton as HTMLButtonElement);
-            }
-        });
-    }
-
     protected getSectionTypeTitle(): string {
       return "System Model"; // User-facing title
     }
@@ -60,6 +47,7 @@ export class SystemDescriptionSection extends BaseSection {
     }
 
     protected populateViewContent(): void {
+        this.diagramContainer = this._findElement<HTMLDivElement>('#generated-diagram-container');
         const viewContent = this._findElement<HTMLDivElement>('.section-view-content');
         const codeBlock = viewContent?.querySelector('code'); // Target the <code> block
         if (codeBlock) {
@@ -73,8 +61,12 @@ export class SystemDescriptionSection extends BaseSection {
             console.warn(`View code block area not found for system_description section ${this.data.id}`);
             if(viewContent) viewContent.innerHTML = `<p class="text-gray-400 italic">Error: View structure incorrect.</p>`;
         }
-        // Re-bind view mode actions AFTER populating view content ensures buttons exist
-        this._bindViewModeActions();
+
+        // Initialize diagram container state (e.g., show placeholder text)
+        this.updateDiagramDisplay(null, false); // Show initial placeholder
+
+        // **Bind specific view actions AFTER content is populated**
+        this.bindSpecificViewActions();
     }
 
     protected populateEditContent(): void {
@@ -88,7 +80,53 @@ export class SystemDescriptionSection extends BaseSection {
             const editContainer = this._findElement('.section-edit-form');
             if(editContainer) editContainer.innerHTML = `<p class="text-red-500 p-4">Error: Textarea element missing.</p>`;
         }
+        // Find and potentially disable diagram container/buttons in edit mode if needed
+        this.diagramContainer = this._findElement<HTMLDivElement>('#generated-diagram-container');
+        this.diagramContainer?.classList.add('hidden'); // Hide diagram area in edit mode
+
+        // **Bind specific edit actions AFTER content is populated**
+        this.bindSpecificEditActions();
     }
+
+    /** Binds actions specific to the view mode UI */
+    protected bindSpecificViewActions(): void {
+        console.log(`Binding specific view actions for ${this.sectionId}`);
+        const validateButton = this._findElement<HTMLButtonElement>('.view-actions .section-validate-dsl', false);
+        const generateDiagramButton = this._findElement<HTMLButtonElement>('.view-actions .section-generate-diagram', false);
+        // const runAnalysisButton = this._findElement<HTMLButtonElement>('.view-actions .section-run-analysis', false); // Future
+
+        if (validateButton) {
+            validateButton.onclick = (e) => {
+                e.stopPropagation(); // *** Crucial: Stop event from bubbling ***
+                this.handleValidateClick(validateButton);
+            };
+        } else { console.warn(`View Validate button not found for ${this.sectionId}`); }
+
+        if (generateDiagramButton) {
+            generateDiagramButton.onclick = (e) => {
+                e.stopPropagation(); // *** Crucial: Stop event from bubbling ***
+                this.handleGenerateDiagramClick(generateDiagramButton);
+            };
+        } else { console.warn(`View Generate Diagram button not found for ${this.sectionId}`); }
+
+        // Bind run analysis later...
+    }
+
+    /** Binds actions specific to the edit mode UI */
+    protected bindSpecificEditActions(): void {
+        console.log(`Binding specific edit actions for ${this.sectionId}`);
+        const validateButton = this._findElement<HTMLButtonElement>('.edit-controls .section-validate-dsl', false);
+        // Note: Save/Cancel are likely handled by BaseSection's delegated handler,
+        // but could be bound here too if needed for specific subclass logic.
+
+        if (validateButton) {
+            validateButton.onclick = (e) => {
+                e.stopPropagation(); // *** Crucial: Stop event from bubbling ***
+                this.handleValidateClick(validateButton);
+            };
+        } else { console.warn(`Edit Validate button not found for ${this.sectionId}`); }
+    }
+
 
     protected getContentFromEditMode(): SystemDescriptionContent {
         if (this.textAreaElement) {
@@ -182,7 +220,7 @@ export class SystemDescriptionSection extends BaseSection {
         if (this.isLoading) return; // Prevent concurrent validation
 
         this.isLoading = true;
-        this.showLoadingOnButton(buttonElement, true);
+        this.showLoadingOnButton(buttonElement, true, 'Validating...');
 
         try {
             const response = await SystemModelApi.systemModelServiceValidateDSL({
@@ -212,6 +250,86 @@ export class SystemDescriptionSection extends BaseSection {
             this.showLoadingOnButton(buttonElement, false);
         }
     }
+
+
+    // --- NEW: Diagram Generation Logic ---
+    private async handleGenerateDiagramClick(buttonElement: HTMLButtonElement | null): Promise<void> {
+        console.log(`Generate Diagram clicked for section ${this.sectionId}`);
+        if (this.isDiagramLoading) return; // Prevent concurrent generation
+
+        this.isDiagramLoading = true;
+        this.showLoadingOnButton(buttonElement, true, 'Generating...');
+        this.updateDiagramDisplay('<p class="text-gray-500 dark:text-gray-400 italic">Generating diagram...</p>', true); // Show loading state in diagram area
+
+        try {
+            const response: V1GenerateDiagramResponse = await SystemModelApi.systemModelServiceGenerateDiagram({
+                designId: this.designId,
+                sectionId: this.sectionId,
+                body: {} // Empty body for now
+            });
+
+            console.log("Received diagram response:", response.diagramFormat); // Log format
+
+            if (response.diagramContent) {
+                if (response.diagramFormat === 'svg') {
+                    this.updateDiagramDisplay(response.diagramContent, false); // Display SVG
+                    this.toastManager.showToast("Diagram Generated", "Diagram updated successfully.", "success", 1500);
+                } else if (response.diagramFormat === 'mermaid') {
+                    // TODO: Add Mermaid rendering logic later
+                    console.warn("Mermaid diagram format received but rendering not implemented yet.");
+                    this.updateDiagramDisplay(`<pre class="text-xs">${response.diagramContent}</pre>`, false); // Show code for now
+                    this.toastManager.showToast("Diagram Generated", "Mermaid code generated (preview TBD).", "info", 2000);
+                } else {
+                    console.warn("Received unsupported diagram format:", response.diagramFormat);
+                    this.updateDiagramDisplay(`<p class="text-yellow-500">Received unsupported diagram format: ${response.diagramFormat}</p>`, false);
+                    this.toastManager.showToast("Warning", `Received diagram in unsupported format: ${response.diagramFormat}`, "warning");
+                }
+            } else {
+                this.updateDiagramDisplay('<p class="text-yellow-500">Diagram generation returned empty content.</p>', false);
+                this.toastManager.showToast("Warning", "Diagram generation resulted in empty content.", "warning");
+            }
+
+        } catch (error: any) {
+            console.error(`Error generating diagram for section ${this.sectionId}:`, error);
+            const errorMsg = error.message || (error.response ? await error.response.text() : 'Server error');
+            this.toastManager.showToast("Diagram Error", `Failed: ${errorMsg}`, "error");
+            this.updateDiagramDisplay(`<p class="text-red-500">Error generating diagram: ${errorMsg}</p>`, false); // Show error in diagram area
+        } finally {
+            this.isDiagramLoading = false;
+            this.showLoadingOnButton(buttonElement, false); // Restore button
+        }
+    }
+
+    // --- NEW: Helper to update diagram display area ---
+    private updateDiagramDisplay(content: string | null, isLoading: boolean): void {
+         if (!this.diagramContainer) {
+             // Try to find it again in case populateViewContent hasn't run yet or was cleared
+             this.diagramContainer = this._findElement<HTMLDivElement>('#generated-diagram-container');
+             if (!this.diagramContainer) {
+                console.warn(`Cannot update diagram display: container not found for ${this.sectionId}`);
+                return;
+             }
+         }
+
+        // Always ensure container is visible if we're trying to update it (unless in edit mode)
+        if (this.mode === 'view') {
+            this.diagramContainer.classList.remove('hidden');
+        }
+
+        if (isLoading) {
+             this.diagramContainer.innerHTML = `<div class="p-4 text-center text-gray-500 dark:text-gray-400 italic">Loading diagram...</div>`;
+        } else if (content) {
+             // Directly set innerHTML. Assumes content is safe (e.g., sanitized SVG from backend or trusted Mermaid output).
+             // BE CAREFUL with unsanitized content here due to potential XSS.
+             this.diagramContainer.innerHTML = content;
+             // If it's Mermaid, trigger rendering (add in Phase 3)
+             // if (format === 'mermaid') { mermaid.run(...); }
+        } else {
+             // Show placeholder if content is null/empty
+             this.diagramContainer.innerHTML = `<p class="text-gray-500 dark:text-gray-400 italic p-4 text-center">Click "Generate/Refresh Diagram" to view.</p>`;
+        }
+    }
+
 
     // Helper to show/hide loading state on a button
     private showLoadingOnButton(button: HTMLButtonElement | null, isLoading: boolean, loadingText: string = "Processing...") {

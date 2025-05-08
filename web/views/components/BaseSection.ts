@@ -199,41 +199,45 @@ export abstract class BaseSection {
         this.element.onclick = (event: MouseEvent) => {
             const target = event.target as HTMLElement;
 
+            // --- 1. Check for UNIVERSAL action buttons ---
             // Find the closest button ancestor matching known action classes
-            const actionButton = target.closest<HTMLButtonElement>(
+            const universalActionButton = target.closest<HTMLButtonElement>(
                 '.section-delete, .section-move-up, .section-move-down, .section-settings, .section-ai, .section-add-before, .section-add-after, .section-edit-trigger, .section-edit-save, .section-edit-cancel'
             );
 
-            if (!actionButton) {
-                // If the click wasn't on a button, check if it was on the view content area (excluding explicit triggers)
-                if (this.mode === 'view' && target.closest('.section-view-content') && !target.closest('.section-edit-trigger')) {
-                    this.handleViewClick(); // Trigger edit on general view content click
-                }
-                return; // Click wasn't on a recognized interactive element
+            if (universalActionButton) {
+                 console.log(`Universal Action button clicked:`, universalActionButton.classList);
+                 // Stop propagation even for universal buttons if we want to be sure they don't trigger view click
+                 event.stopPropagation();
+
+                 // Handle UNIVERSAL actions based on button class
+                 if (universalActionButton.matches('.section-delete')) { this.callbacks.onDelete?.(this.data.id); }
+                 else if (universalActionButton.matches('.section-move-up')) { this.callbacks.onMoveUp?.(this.data.id); }
+                 else if (universalActionButton.matches('.section-move-down')) { this.callbacks.onMoveDown?.(this.data.id); }
+                 else if (universalActionButton.matches('.section-settings')) { this.openSettings(); }
+                 else if (universalActionButton.matches('.section-ai')) { this.llmInteractionHandler.showLlmDialog(this.data, this.getApplyCallback()); }
+                 else if (universalActionButton.matches('.section-add-before')) { this.callbacks.onAddSectionRequest?.(this.data.id, 'before'); }
+                 else if (universalActionButton.matches('.section-add-after')) { this.callbacks.onAddSectionRequest?.(this.data.id, 'after'); }
+                 else if (universalActionButton.matches('.section-edit-trigger') && this.mode === 'view') { this.switchToEditMode(); }
+                 else if (universalActionButton.matches('.section-edit-save') && this.mode === 'edit') { this.handleSaveClick(); } // Might be overridden by subclass
+                 else if (universalActionButton.matches('.section-edit-cancel') && this.mode === 'edit') { this.handleCancelClick(); } // Might be overridden by subclass
+
+                 return; // Universal action handled
             }
 
-            // Handle actions based on button class
-            if (actionButton.matches('.section-delete')) {
-                this.callbacks.onDelete?.(this.data.id);
-            } else if (actionButton.matches('.section-move-up')) {
-                this.callbacks.onMoveUp?.(this.data.id);
-            } else if (actionButton.matches('.section-move-down')) {
-                this.callbacks.onMoveDown?.(this.data.id);
-            } else if (actionButton.matches('.section-settings')) {
-                this.openSettings();
-            } else if (actionButton.matches('.section-ai')) {
-                this.llmInteractionHandler.showLlmDialog(this.data, this.getApplyCallback());
-            } else if (actionButton.matches('.section-add-before')) {
-                this.callbacks.onAddSectionRequest?.(this.data.id, 'before');
-            } else if (actionButton.matches('.section-add-after')) {
-                this.callbacks.onAddSectionRequest?.(this.data.id, 'after');
-            } else if (actionButton.matches('.section-edit-trigger') && this.mode === 'view') {
-                 this.switchToEditMode();
-            } else if (actionButton.matches('.section-edit-save') && this.mode === 'edit') {
-                 this.handleSaveClick();
-            } else if (actionButton.matches('.section-edit-cancel') && this.mode === 'edit') {
-                 this.handleCancelClick();
+            // --- 2. If NOT a universal action button, check for general view click ---
+            if (this.mode === 'view' && this.allowEditOnClick) {
+                // Check if the click target is *not* any button or interactive element
+                const clickedOnInteractive = target.closest('button, a, input, textarea, select');
+                const viewContentContainer = target.closest('.section-content');
+
+                // Only trigger edit if clicking on non-interactive content within the main container
+                if (viewContentContainer && !clickedOnInteractive) {
+                    console.log("General view content click detected, switching to edit.");
+                    this.handleViewClick(); // Trigger edit
+                }
             }
+
             // Note: Fullscreen button is handled separately by FullscreenHandler
         }
     }
@@ -430,29 +434,40 @@ export abstract class BaseSection {
      */
     public switchToViewMode(saveChanges: boolean): void {
         let savePromise: Promise<void> = Promise.resolve();
-        if (this.mode === 'edit' && saveChanges) {
-            console.log(`switchToViewMode: Save requested for ${this.sectionId}.`);
-            // Trigger save; subclasses handle actual API call via handleSaveClick
-            savePromise = this.handleSaveClick();
-        } else if (this.mode === 'edit' && !saveChanges) {
+        const wasInEditMode = this.mode === 'edit';
+        if (wasInEditMode) {
+            if (saveChanges) {
+                console.log(`switchToViewMode: Save requested for ${this.sectionId}.`);
+                // Trigger save; subclasses handle actual API call via handleSaveClick
+                savePromise = this.handleSaveClick();
+            } else {
              console.log(`switchToViewMode: Cancelling edit for ${this.sectionId}.`);
+             // cleanupEditMode is abstract or overridden for specific editor disposal etc.
              this.cleanupEditMode();
-        }
+            }
+        }/// End edit mode handling
 
         // Switch mode and render *after* save attempt completes (or if no save needed)
         savePromise.then(() => {
+            // *** Core Base Logic for Switching to View ***
             this.mode = 'view';
             console.log(`Switching ${this.sectionId} to view mode.`);
-            this._renderCurrentMode(); // Render the view template
+            // 1. Load the generic view template structure
+            const templateLoaded = this.loadTemplate('view');
+            if (templateLoaded) {
+                // 2. Subclass populates the loaded template's content areas
+                this.populateViewContent();
+                // 3. Subclass binds listeners to any specific buttons/elements *within* its view template
+                this.bindSpecificViewActions();
+            } else {
+                 console.error("Failed to load view template for section", this.data.id);
+                 // Handle error: maybe show error state, maybe revert mode?
+            }
+            // *** End Core Base Logic ***
         }).catch(err => {
             console.error(`Error during save for section ${this.sectionId}, staying in edit mode.`, err);
             this.toastManager.showToast("Save Failed", `Could not save: ${err.message || 'Unknown error'}`, "error");
         });
-    }
-
-    /** Cleans up resources used in edit mode (e.g., editors, listeners) */
-    protected cleanupEditMode(): void {
-        console.log(`BaseSection ${this.sectionId}: Cleaning up edit mode.`);
     }
 
     /**
@@ -465,9 +480,26 @@ export abstract class BaseSection {
             return;
         }
 
-        this.mode = 'edit';
-        console.log(`Switching ${this.sectionId} to edit mode.`);
-        this._renderCurrentMode(); // Render the edit template
+         // *** Core Base Logic for Switching to Edit ***
+         this.mode = 'edit';
+         console.log(`Switching ${this.sectionId} to edit mode.`);
+         // 1. Load the generic edit template structure
+         const templateLoaded = this.loadTemplate('edit');
+         if (templateLoaded) {
+             // 2. Subclass populates the template and initializes editors/forms
+             this.populateEditContent();
+             // 3. Subclass binds listeners to any specific buttons/elements *within* its edit template
+             this.bindSpecificEditActions();
+         } else {
+             console.error("Failed to load edit template for section", this.data.id);
+             this.mode = 'view'; // Revert mode if template fails
+         }
+         // *** End Core Base Logic ***
+    }
+
+    /** Cleans up resources used in edit mode (e.g., editors, listeners) */
+    protected cleanupEditMode(): void {
+        console.log(`BaseSection ${this.sectionId}: Cleaning up edit mode.`);
     }
 
     /**
@@ -540,6 +572,12 @@ export abstract class BaseSection {
 
     /** Populates the loaded Edit mode template with the section's current data and initializes editors. */
     protected abstract populateEditContent(): void;
+
+    // Add placeholder methods for subclasses to bind their actions if needed
+    /** Binds actions specific to the view mode UI */
+    protected bindSpecificViewActions(): void {}
+    /** Binds actions specific to the edit mode UI */
+    protected bindSpecificEditActions(): void {}
 
     /** Handles resizing the section's specific content (e.g., canvas, plot) when entering/exiting fullscreen or on window resize. */
     protected abstract resizeContentForFullscreen(isEntering: boolean): void;

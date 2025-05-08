@@ -10,7 +10,7 @@ import { LeetCoachDocument, DocumentSection, SectionType, SectionData } from './
 import { DesignApi } from './Api';
 import { V1GetDesignResponse, V1Section } from './apiclient';
 import { convertApiSectionToSectionData } from './converters';
-import { BaseSection } from './BaseSection';
+import { SectionContainer } from './SectionContainer';
 
 /**
  * Main application initialization
@@ -150,7 +150,7 @@ class DesignEditorPage {
             // Step 3: Initialize Section Shells using SectionManager
             console.log(`DesignEditorPage: Initializing ${sectionsMetadata.length} section shells...`);
             // This creates the instances and DOM, but doesn't load content yet
-            const sectionInstances: BaseSection[] = this.sectionManager.initializeSections(sectionsMetadata);
+            const sectionInstances: SectionContainer[] = this.sectionManager.initializeSections(sectionsMetadata);
 
             // Step 4: Trigger Content Loading for Each Section Instance
             /*

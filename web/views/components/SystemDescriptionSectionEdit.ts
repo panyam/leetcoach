@@ -232,7 +232,7 @@ export class SystemDescriptionSectionEdit implements ISectionEditComponent {
          // No specific action needed here unless direct style manipulation is done.
      }
 
-     // Copy showLoadingOnButton helper from SystemDescriptionView or BaseSection if needed here too
+     // Copy showLoadingOnButton helper from SystemDescriptionView or SectionContainer if needed here too
      private showLoadingOnButton(button: HTMLButtonElement | null, isLoading: boolean, loadingText: string = "Processing...") {
         // ... implementation ...
         if (!button) return;

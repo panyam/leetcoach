@@ -101,7 +101,7 @@ export class DrawingSectionEdit implements ISectionEditComponent {
         } catch (error: any) {
             console.error(`Error loading initial drawing content for ${this.sectionId}:`, error);
             this.isLoading = false;
-            if (error.status === 404) {
+            if (error.response.status === 404) {
                  this.initialContent = this.normalizeContent(null);
                  this.currentContent = this.initialContent;
                  this.initializeEditor(this.editorContainerElement); // Init with empty

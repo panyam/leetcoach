@@ -17,7 +17,7 @@ export class DrawingSectionView implements ISectionViewComponent {
 
     // DOM element references within the template
     private previewContainer: HTMLDivElement | null = null;
-    private editTriggerButton: HTMLButtonElement | null = null; // For consistency, though handled by BaseSection
+    private editTriggerButton: HTMLButtonElement | null = null; // For consistency, though handled by SectionContainer
 
     private templateLoader = new TemplateLoader();
 

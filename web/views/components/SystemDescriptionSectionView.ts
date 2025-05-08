@@ -79,7 +79,7 @@ export class SystemDescriptionSectionView implements ISectionViewComponent {
         } catch (error: any) {
             console.error(`Error loading DSL content for ${this.sectionId}:`, error);
             this.isLoading = false;
-            if (error.status === 404) {
+            if (error.response.status === 404) {
                 this.dslContent = '';
                 this.renderContent(); // Render empty placeholder
                 this.bindSpecificViewActions(); // Bind buttons even if content is empty

@@ -1,7 +1,7 @@
 // ./web/views/components/SectionManager.ts
 
 import { Modal } from './Modal';
-import { BaseSection } from './BaseSection';
+import { SectionContainer } from './SectionContainer';
 // import { TextSection } from './TextSection';
 // import { DrawingSection } from './DrawingSection';
 // import { PlotSection } from './PlotSection';
@@ -16,14 +16,14 @@ import { createApiSectionUpdateObject, convertApiSectionToSectionData , mapFront
 
 
 /**
- * Manages document sections using the BaseSection hierarchy.
+ * Manages document sections using the SectionContainer hierarchy.
  * Collaborates with TableOfContents component for UI updates.
  */
 export class SectionManager {
     private designId: string = "";
-    private sections: Map<string, BaseSection> = new Map();
+    private sections: Map<string, SectionContainer> = new Map();
     // sectionData now primarily stores metadata managed by SectionManager (title, order).
-    // Content is primarily managed within the BaseSection instance's data property after load.
+    // Content is primarily managed within the SectionContainer instance's data property after load.
     private sectionData: SectionData[] = [];
     private nextSectionId: number = 1; // Still potentially useful for client-side ID generation fallback? Maybe remove later.
     private sectionsContainer: HTMLElement | null;
@@ -145,7 +145,7 @@ export class SectionManager {
             // Only listen for buttons NOT inside the TOC sidebar
             const addSectionBtn = target.closest('#create-first-section'); // Only listen for the empty state button here
 
-            // Add buttons within sections are now handled by BaseSection -> onAddSectionRequest callback
+            // Add buttons within sections are now handled by SectionContainer -> onAddSectionRequest callback
             if (addSectionBtn) {
                 e.preventDefault();
                 let insertAfterId: string | null = null;
@@ -401,12 +401,12 @@ export class SectionManager {
      * Called during initial load (with metadata only) or after a successful addSection API call (with full data).
      * @param sectionData - Data for the section. Crucially, `content` might be empty/null during initial load.
      * @param isUserAction - Flag for reordering/TOC updates.
-     * @returns The created BaseSection instance or null on failure.
+     * @returns The created SectionContainer instance or null on failure.
      */
     private createSectionInternal(
         sectionData: SectionData,
         isUserAction: boolean = false
-    ): BaseSection | null {
+    ): SectionContainer | null {
         console.log("createSectionInternal called with data:", sectionData, "isUserAction:", isUserAction);
 
         const sectionId = sectionData.id;
@@ -434,7 +434,7 @@ export class SectionManager {
         this.sectionsContainer.appendChild(sectionEl);
 
         // --- Section Instance Creation ---
-        let sectionInstance: BaseSection;
+        let sectionInstance: SectionContainer;
         const callbacks: SectionCallbacks = {
             onDelete: this.deleteSection.bind(this),
             onMoveUp: this.moveSectionUp.bind(this),
@@ -443,16 +443,16 @@ export class SectionManager {
             onAddSectionRequest: this.openSectionTypeSelector.bind(this)
         };
 
-        // Instantiate the CONTAINER (BaseSection) for all types.
-        // The BaseSection constructor will handle fetching initial content
+        // Instantiate the CONTAINER (SectionContainer) for all types.
+        // The SectionContainer constructor will handle fetching initial content
         // and rendering the correct initial VIEW mode component based on sectionData.type.
         try {
-            // Pass the initial metadata. BaseSection's constructor
+            // Pass the initial metadata. SectionContainer's constructor
             // should trigger the initial content load.
-            sectionInstance = new BaseSection(sectionData, sectionEl, callbacks);
+            sectionInstance = new SectionContainer(sectionData, sectionEl, callbacks);
             (sectionEl as any).componentInstance = sectionInstance; // Store container instance
         } catch (error) {
-            console.error(`Failed to instantiate BaseSection container for ${sectionData.id}:`, error);
+            console.error(`Failed to instantiate SectionContainer container for ${sectionData.id}:`, error);
             sectionEl.remove(); // Clean up element if instantiation fails
             return null;
         }
@@ -524,14 +524,14 @@ export class SectionManager {
      * Creates instances and renders basic structure, but does *not* load content.
      * Content loading is triggered separately by calling loadContent() on the returned instances.
      * @param sectionsMetadata - Array of section metadata objects.
-     * @returns An array of the created BaseSection instances.
+     * @returns An array of the created SectionContainer instances.
      */
-    public initializeSections(sectionsMetadata: SectionData[]): BaseSection[] {
+    public initializeSections(sectionsMetadata: SectionData[]): SectionContainer[] {
         if (!this.sectionsContainer) return [];
         console.log("SectionManager: Initializing sections from metadata:", sectionsMetadata.length);
         this.clearAllSections(); // Clear DOM, data, map
 
-        const createdInstances: BaseSection[] = [];
+        const createdInstances: SectionContainer[] = [];
 
         // Ensure metadata is sorted by order before creating instances
         sectionsMetadata.sort((a, b) => a.order - b.order);

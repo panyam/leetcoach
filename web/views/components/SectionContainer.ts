@@ -22,9 +22,9 @@ import { SystemDescriptionSectionEdit } from './SystemDescriptionSectionEdit';
 import { PlotSectionView, PlotSectionEdit } from './PlotSectionModes';
 // --- End Placeholder Imports ---
 
-/** Treat BaseSection as the Section Container now
+/** Treat SectionContainer as the Section Container now
  */
-export class BaseSection {
+export class SectionContainer {
     protected data: SectionData;
     protected element: HTMLElement;
     protected callbacks: SectionCallbacks;
@@ -60,7 +60,7 @@ export class BaseSection {
     protected _findElement<T extends HTMLElement>(selector: string, required: boolean = true): T | null {
         const element = this.element.querySelector<T>(selector);
         if (!element && required) {
-            console.warn(`BaseSection ${this.sectionId}: Required element with selector "${selector}" not found.`);
+            console.warn(`SectionContainer ${this.sectionId}: Required element with selector "${selector}" not found.`);
         }
         return element;
     }
@@ -300,14 +300,18 @@ export class BaseSection {
         if (targetMode === 'view') {
             switch (sectionType) {
                 case 'text': ComponentClass = TextSectionView; break;
-                // Add other view types later...
-                default: ComponentClass = DrawingSectionView; // Fallback or error
+                case 'drawing': ComponentClass = DrawingSectionView; break;
+                case 'plot': ComponentClass = PlotSectionView; break; // Placeholder
+                case 'system_description': ComponentClass = SystemDescriptionSectionView; break; // *** USE ACTUAL ***
+                default: console.error(`Unsupported view: ${sectionType}`);
             }
         } else { // edit mode
             switch (sectionType) {
                 case 'text': ComponentClass = TextSectionEdit; break;
-                 // Add other edit types later...
-                default: ComponentClass = DrawingSectionEdit; // Fallback or error
+                case 'drawing': ComponentClass = DrawingSectionEdit; break;
+                case 'plot': ComponentClass = PlotSectionEdit; break; // Placeholder
+                case 'system_description': ComponentClass = SystemDescriptionSectionEdit; break; // *** USE ACTUAL ***
+                default: console.error(`Unsupported edit: ${sectionType}`);
             }
         }
 
@@ -388,7 +392,7 @@ export class BaseSection {
         // The Edit component already saved. We just need to switch mode.
         this.renderModeComponent('view');
         // We could potentially trigger a state update higher up if needed (e.g., update last saved time)
-        // this.updateLastSavedTimestamp(); // Assume BaseSection handles this maybe?
+        // this.updateLastSavedTimestamp(); // Assume SectionContainer handles this maybe?
     }
 
     /** Handles the cancel action triggered by the Edit component */

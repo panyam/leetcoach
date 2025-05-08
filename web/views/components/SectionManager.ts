@@ -5,6 +5,7 @@ import { BaseSection } from './BaseSection';
 import { TextSection } from './TextSection';
 import { DrawingSection } from './DrawingSection';
 import { PlotSection } from './PlotSection';
+import { SystemDescriptionSection } from './SystemDescriptionSection';
 import { SectionContent, DocumentSection, SectionType, TextContent, DrawingContent, PlotContent, SectionData, SectionCallbacks } from './types';
 import { TocItemInfo, TableOfContents } from './TableOfContents';
 import { V1Section, V1PositionType, V1SuggestedSection } from './apiclient'; // Import V1Section and V1PositionType, LlmApi, V1SuggestedSection
@@ -64,11 +65,25 @@ export class SectionManager {
         "Benchmark Results"
     ];
 
+    private static readonly SYSTEM_DESCRIPTION_TITLES: string[] = [
+        "System Model", "Component Interactions", "Behavioral Model",
+        "Performance Model", "DSL Definition", "Simulation Setup",
+        "System Execution Flow", "Resource Allocation"
+    ];
+
 
     private static getRandomTitle(type: SectionType): string {
-      const titles = type === 'drawing' ? this.DRAWING_TITLES : type === 'plot' ? this.PLOT_TITLES : this.TEXT_TITLES;
-      const randomIndex = Math.floor(Math.random() * titles.length);
-      return titles[randomIndex] || `New ${type.charAt(0).toUpperCase() + type.slice(1)} Section`; // Fallback
+      let titles: string[];
+      switch (type) {
+        case 'drawing': titles = this.DRAWING_TITLES; break;
+        case 'plot': titles = this.PLOT_TITLES; break;
+        case 'system_description': titles = this.SYSTEM_DESCRIPTION_TITLES; break; // <-- Add case
+        case 'text':
+          default: titles = this.TEXT_TITLES;
+        }
+        const randomIndex = Math.floor(Math.random() * titles.length);
+        // Fallback uses replace for better naming
+        return titles[randomIndex] || `New ${type.replace('_', ' ')} Section`;
     }
 
 
@@ -195,6 +210,11 @@ export class SectionManager {
         const typeOption = target.closest('.section-type-option') as HTMLButtonElement | null;
         if (typeOption && typeOption.dataset.sectionType) {
             const type = typeOption.dataset.sectionType as SectionType;
+            if (!['text', 'drawing', 'plot', 'system_description'].includes(type)) {
+                 console.error(`Invalid section type selected: ${type}`);
+                 this.toastManager.showToast("Error", "Invalid section type selected.", "error");
+                 return;
+            }
             const modalData = this.modal.getCurrentData();
             this.handleSectionTypeSelection(type, modalData?.relativeToId || null, modalData?.position || 'after');
             this.modal.hide();
@@ -214,7 +234,7 @@ export class SectionManager {
             // Look at the parent as the dataset seems to be on the button's parent instead of on the button
             const title = suggestedOption.dataset.suggestedTitle;
             const type = suggestedOption.dataset.suggestedType as SectionType; // Assume type is valid
-            if (title && type) {
+            if (title && type && ['text', 'drawing', 'plot', 'system_description'].includes(type)) {
                 const modalData = this.modal.getCurrentData();
                 this.handleSectionTypeSelection(type, modalData?.relativeToId || null, modalData?.position || 'after', title);
                 this.modal.hide();
@@ -420,7 +440,6 @@ export class SectionManager {
             onMoveUp: this.moveSectionUp.bind(this),
             onMoveDown: this.moveSectionDown.bind(this),
             onTitleChange: this.updateSectionTitle.bind(this),
-            // onContentChange: REMOVED - Content saving handled by BaseSection
             onAddSectionRequest: this.openSectionTypeSelector.bind(this)
         };
 
@@ -430,6 +449,7 @@ export class SectionManager {
             case 'text':    sectionInstance = new TextSection(sectionData, sectionEl, callbacks); break;
             case 'drawing': sectionInstance = new DrawingSection(sectionData, sectionEl, callbacks); break;
             case 'plot':    sectionInstance = new PlotSection(sectionData, sectionEl, callbacks); break;
+            case 'system_description': sectionInstance = new SystemDescriptionSection(sectionData, sectionEl, callbacks); break;
             default:
                 console.warn(`Unhandled section type "${type}" during creation. Defaulting to Text.`);
                 sectionData.type = 'text'; // Correct the data type if defaulting

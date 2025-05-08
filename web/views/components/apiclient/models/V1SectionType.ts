@@ -21,7 +21,8 @@ export const V1SectionType = {
     SectionTypeUnspecified: 'SECTION_TYPE_UNSPECIFIED',
     SectionTypeText: 'SECTION_TYPE_TEXT',
     SectionTypeDrawing: 'SECTION_TYPE_DRAWING',
-    SectionTypePlot: 'SECTION_TYPE_PLOT'
+    SectionTypePlot: 'SECTION_TYPE_PLOT',
+    SectionTypeSystemDescription: 'SECTION_TYPE_SYSTEM_DESCRIPTION'
 } as const;
 export type V1SectionType = typeof V1SectionType[keyof typeof V1SectionType];
 

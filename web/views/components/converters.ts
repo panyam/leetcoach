@@ -1,6 +1,6 @@
 // ./web/views/components/converters.ts
 
-import { SectionData, SectionType, ExcalidrawSceneData } from './types';
+import { SectionData, SectionType, ExcalidrawSceneData, SystemDescriptionContent } from './types';
 import {
     V1Section, V1SectionType,
     // Renaming the long type for clarity
@@ -14,6 +14,7 @@ export function mapApiSectionTypeToFrontend(apiType?: V1SectionType): SectionTyp
         case V1SectionType.SectionTypeText: return 'text';
         case V1SectionType.SectionTypeDrawing: return 'drawing';
         case V1SectionType.SectionTypePlot: return 'plot';
+        case V1SectionType.SectionTypeSystemDescription: return 'system_description';
         // Default to text or throw an error if unspecified is invalid
         case V1SectionType.SectionTypeUnspecified:
         default:
@@ -27,6 +28,7 @@ export function mapFrontendSectionTypeToApi(type: SectionType): V1SectionType {
         case 'text': return V1SectionType.SectionTypeText;
         case 'drawing': return V1SectionType.SectionTypeDrawing;
         case 'plot': return V1SectionType.SectionTypePlot;
+        case 'system_description': return V1SectionType.SectionTypeSystemDescription;
         default:
              console.error(`Cannot map unknown frontend section type: ${type}`);
              return V1SectionType.SectionTypeUnspecified; // Indicate error

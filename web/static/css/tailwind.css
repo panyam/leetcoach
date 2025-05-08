@@ -1632,6 +1632,10 @@ select {
   min-height: 100px;
 }
 
+.min-h-\[150px\] {
+  min-height: 150px;
+}
+
 .min-h-\[200px\] {
   min-height: 200px;
 }
@@ -2214,6 +2218,10 @@ select {
 
 .pt-0 {
   padding-top: 0px;
+}
+
+.pt-4 {
+  padding-top: 1rem;
 }
 
 .text-left {

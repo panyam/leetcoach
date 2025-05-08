@@ -124,6 +124,7 @@ enum SectionType {
   SECTION_TYPE_TEXT = 1;
   SECTION_TYPE_DRAWING = 2;
   SECTION_TYPE_PLOT = 3;
+  SECTION_TYPE_SYSTEM_DESCRIPTION = 4;
 }
 
 message Section {

@@ -167,6 +167,8 @@ func SectionTypeToString(st protos.SectionType) string {
 		return "drawing"
 	case protos.SectionType_SECTION_TYPE_PLOT:
 		return "plot"
+	case protos.SectionType_SECTION_TYPE_SYSTEM_DESCRIPTION:
+		return "system_description"
 	default:
 		return "unspecified"
 	}

@@ -1,7 +1,7 @@
 // components/types.ts
 
-export type SectionType = 'text' | 'drawing' | 'plot';
-export type SectionContent = TextContent | DrawingContent | PlotContent | null;
+export type SectionType = 'text' | 'drawing' | 'plot' | 'system_description';
+export type SectionContent = TextContent | DrawingContent | PlotContent | SystemDescriptionContent | null;
 export interface DocumentMetadata {
   id: string; // UUID - Placeholder for now
   schemaVersion: string;
@@ -30,6 +30,8 @@ export interface PlotContent {
   data: object; // The configuration or data object for the plot
 }
 
+export type SystemDescriptionContent = string; // DSL content as a string
+
 export interface BaseDocumentSection {
   id: string;
   title: string;
@@ -49,6 +51,11 @@ export interface DrawingDocumentSection extends BaseDocumentSection {
 export interface PlotDocumentSection extends BaseDocumentSection {
   type: 'plot';
   content: PlotContent | null;
+}
+
+export interface SystemDescriptionDocumentSection extends BaseDocumentSection {
+  type: 'system_description';
+  content: SystemDescriptionContent | null;
 }
 
 
@@ -75,7 +82,7 @@ export interface SectionCallbacks {
 }
 
 // DocumentSection represents the interpreted state, useful for export/display.
-export type DocumentSection = TextDocumentSection | DrawingDocumentSection | PlotDocumentSection;
+export type DocumentSection = TextDocumentSection | DrawingDocumentSection | PlotDocumentSection | SystemDescriptionDocumentSection;
 
 // LeetCoachDocument represents the interpreted state of the whole document.
 export interface LeetCoachDocument {

@@ -2,6 +2,7 @@ apis/AdminServiceApi.ts
 apis/ContentServiceApi.ts
 apis/DesignServiceApi.ts
 apis/LlmServiceApi.ts
+apis/SystemModelServiceApi.ts
 apis/TagServiceApi.ts
 apis/index.ts
 index.ts
@@ -18,6 +19,7 @@ models/ProtobufAny.ts
 models/ProtobufNullValue.ts
 models/RpcStatus.ts
 models/SectionObjectContainingOnlyTheFieldsToBeUpdatedTheServerWillUseTheUpdateMaskToKnowWhichFieldsFromThisSectionMessageToApplyToTheStoredSection.ts
+models/SystemModelServiceValidateDSLRequest.ts
 models/TagBeingUpdated.ts
 models/TagCreationRequestObject.ts
 models/UpdateDesignRequest.ts
@@ -49,5 +51,7 @@ models/V1SuggestSectionsResponse.ts
 models/V1SuggestedSection.ts
 models/V1UpdateDesignResponse.ts
 models/V1UpdateTagResponse.ts
+models/V1ValidateDSLResponse.ts
+models/V1ValidationError.ts
 models/index.ts
 runtime.ts

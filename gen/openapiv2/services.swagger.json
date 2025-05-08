@@ -18,6 +18,9 @@
       "name": "LlmService"
     },
     {
+      "name": "SystemModelService"
+    },
+    {
       "name": "TagService"
     }
   ],
@@ -28,6 +31,60 @@
     "application/json"
   ],
   "paths": {
+    "/api/v1/designs/{designId}/sections/{sectionId}/sdl:validate": {
+      "post": {
+        "summary": "Validates the syntax of the DSL code within a specific section.",
+        "operationId": "SystemModelService_ValidateDSL",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ValidateDSLResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "designId",
+            "description": "The ID of the design containing the section.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "sectionId",
+            "description": "The ID of the section whose DSL content needs validation.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "title": "Send the code directly to validate"
+                }
+              },
+              "description": "Request message for validating DSL code."
+            }
+          }
+        ],
+        "tags": [
+          "SystemModelService"
+        ]
+      }
+    },
     "/v1/admin": {
       "post": {
         "operationId": "AdminService_TestAdmin",
@@ -1933,6 +1990,44 @@
       },
       "description": "*\nThe request for (partially) updating an Tag.",
       "title": "UpdateTagResponse"
+    },
+    "v1ValidateDSLResponse": {
+      "type": "object",
+      "properties": {
+        "isValid": {
+          "type": "boolean",
+          "description": "Indicates whether the DSL code is syntactically valid."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ValidationError"
+          },
+          "description": "A list of errors found during validation. Populated only if is_valid is false."
+        }
+      },
+      "description": "Response message for DSL validation."
+    },
+    "v1ValidationError": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Line number where the error occurred (1-based)."
+        },
+        "column": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Column number where the error occurred (1-based)."
+        },
+        "message": {
+          "type": "string",
+          "description": "Description of the error."
+        }
+      },
+      "description": "Represents a single validation error found in the DSL."
     }
   }
 }

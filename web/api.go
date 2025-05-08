@@ -131,6 +131,13 @@ func (web *LCApi) createSvcMux(grpc_addr string) (*runtime.ServeMux, error) {
 		return nil, err
 	}
 
+	err = v1.RegisterSystemModelServiceHandlerFromEndpoint(ctx, svcMux, grpc_addr, opts)
+	if err != nil {
+		log.Fatal("Unable to register system model service: ", err)
+		// panic(err)
+		return nil, err
+	}
+
 	if os.Getenv("LEETCOACH_ENV") == "dev" {
 		// Register AdminService if needed
 		err = v1.RegisterAdminServiceHandlerFromEndpoint(ctx, svcMux, grpc_addr, opts)

@@ -1,6 +1,6 @@
 
 // Example in DesignEditorPage.ts or a dedicated api service wrapper
-import { Configuration, DesignServiceApi, ContentServiceApi, LlmServiceApi /*, other APIs */ } from './apiclient'; // <-- Add ContentServiceApi
+import { Configuration, DesignServiceApi, ContentServiceApi, LlmServiceApi, SystemModelServiceApi /*, other APIs */ } from './apiclient'; // <-- Add ContentServiceApi
 
 function getCookie(cname: string) : string {
   let name = cname + "=";
@@ -57,3 +57,5 @@ const apiConfig = new Configuration({
 export const DesignApi = new DesignServiceApi(apiConfig);
 export const ContentApi = new ContentServiceApi(apiConfig); // <-- Export ContentServiceApi instance
 export const LlmApi = new LlmServiceApi(apiConfig); // <-- Export ContentServiceApi instance
+export const SystemModelApi = new SystemModelServiceApi(apiConfig); // <-- Export SystemModelServiceApi instance
+

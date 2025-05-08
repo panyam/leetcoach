@@ -43,6 +43,7 @@ func (s *Server) Start(ctx context.Context, srvErr chan error, srvChan chan bool
 	contentSvc := NewContentService(designStore) // ContentService needs DesignService (for paths/locks)
 	tagSvc := NewTagService(clients)             // Instantiate TagService
 	llmSvc := NewLlmService(llmClient, designStore, contentSvc)
+	sysModelSvc := NewSystemModelService(contentSvc /*, pass your actual parser if needed */)
 
 	server := grpc.NewServer(
 	// grpc.UnaryInterceptor(EnsureAccessToken), // Add interceptors if needed
@@ -53,6 +54,7 @@ func (s *Server) Start(ctx context.Context, srvErr chan error, srvChan chan bool
 	v1.RegisterDesignServiceServer(server, designSvc)
 	v1.RegisterTagServiceServer(server, tagSvc) // Register TagService
 	v1.RegisterLlmServiceServer(server, llmSvc) // *** Register LlmService ***
+	v1.RegisterSystemModelServiceServer(server, sysModelSvc)
 
 	if os.Getenv("LEETCOACH_ENV") == "dev" {
 		adminSvc := NewAdminService(clients) // Instantiate AdminService

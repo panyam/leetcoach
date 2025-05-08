@@ -609,43 +609,48 @@
   </div>
 
   <!-- System Description Section Templates -->
-  <div class="w-full h-full section-view-content min-h-[150px]">
-    <!-- Preformatted block for code, add language class for highlighting later -->
-    <pre
-      class="bg-gray-100 dark:bg-gray-900 p-4 rounded overflow-x-auto text-sm font-mono text-gray-800 dark:text-gray-200"
-    ><code class="language-dsl"></code></pre>
-    <!-- Add placeholders for diagram and analysis results here in later phases -->
-    <!--
-    <div id="generated-diagram-container" class="mt-4 border-t pt-4"> ... </div>
-    <div id="analysis-results-container" class="mt-4 border-t pt-4"> ... </div>
-    -->
+  <div data-template-id="system_description-section-view">
+    <div class="w-full h-full section-view-content min-h-[150px]">
+      <!-- Preformatted block for code, add language class for highlighting later -->
+      <pre
+        class="bg-gray-100 dark:bg-gray-900 p-4 rounded overflow-x-auto text-sm font-mono text-gray-800 dark:text-gray-200"
+      ><code class="language-dsl"></code></pre>
+      <!-- Add placeholders for diagram and analysis results here in later phases -->
+      <!--
+      <div id="generated-diagram-container" class="mt-4 border-t pt-4"> ... </div>
+      <div id="analysis-results-container" class="mt-4 border-t pt-4"> ... </div>
+      -->
+    </div>
   </div>
 
   <!-- Root element takes full space and arranges children vertically -->
-  <div class="w-full h-full flex flex-col section-edit-form">
-    <!-- Monaco editor target -->
-    <div
-      class="system-dsl-editor-target flex-grow border border-gray-300 dark:border-gray-600 rounded-t-md min-h-[300px] overflow-hidden"
-      aria-label="System Description Language editor"
-    >
-      <!-- Monaco Editor will initialize here, replacing this comment -->
-    </div>
-    <!-- Edit controls fixed at the bottom -->
-    <div
-      class="edit-controls p-2 text-right space-x-2 border-t border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-b-md"
-    >
-      <button
-        type="button"
-        class="section-edit-cancel px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+  <div data-template-id="system_description-section-edit">
+    <div class="w-full h-full flex flex-col section-edit-form">
+      <!-- Monaco editor target -->
+      <textarea
+        id="system-dsl-textarea"
+        class="flex-grow border border-gray-300 dark:border-gray-600 rounded-t-md min-h-[300px] overflow-auto p-2 font-mono text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500"
+        aria-label="System Description Language editor"
+        placeholder="// Enter your System Description Language code here..."
+        spellcheck="false"
+      ></textarea>
+      <!-- Edit controls fixed at the bottom -->
+      <div
+        class="edit-controls p-2 text-right space-x-2 border-t border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-b-md"
       >
-        Cancel
-      </button>
-      <button
-        type="button"
-        class="section-edit-save px-3 py-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-      >
-        Save
-      </button>
+        <button
+          type="button"
+          class="section-edit-cancel px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="section-edit-save px-3 py-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          Save
+        </button>
+      </div>
     </div>
   </div>
 

@@ -4,4 +4,5 @@ export * from './AdminServiceApi';
 export * from './ContentServiceApi';
 export * from './DesignServiceApi';
 export * from './LlmServiceApi';
+export * from './SystemModelServiceApi';
 export * from './TagServiceApi';

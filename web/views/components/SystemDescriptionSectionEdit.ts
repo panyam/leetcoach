@@ -89,7 +89,7 @@ export class SystemDescriptionSectionEdit implements ISectionEditComponent {
         } catch (error: any) {
             console.error(`Error loading initial content for ${this.sectionId}:`, error);
             this.isLoading = false;
-            if (error.status === 404) {
+            if (error.response.status === 404) {
                  this.initialContent = '';
                  this.textareaElement.value = ''; // Ensure textarea is empty
                  this.bindControlEvents();

@@ -5,7 +5,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ValidateDSLRequest, ValidateDSLResponse } from "./systemmodels_pb.js";
+import { GenerateDiagramRequest, GenerateDiagramResponse, ValidateDSLRequest, ValidateDSLResponse } from "./systemmodels_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -26,6 +26,17 @@ export const SystemModelService = {
       name: "ValidateDSL",
       I: ValidateDSLRequest,
       O: ValidateDSLResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Generates a visual diagram based on the DSL code for a section.
+     *
+     * @generated from rpc leetcoach.v1.SystemModelService.GenerateDiagram
+     */
+    generateDiagram: {
+      name: "GenerateDiagram",
+      I: GenerateDiagramRequest,
+      O: GenerateDiagramResponse,
       kind: MethodKind.Unary,
     },
   }

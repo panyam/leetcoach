@@ -21,6 +21,11 @@ class SystemModelServiceStub(object):
                 request_serializer=leetcoach_dot_v1_dot_systemmodels__pb2.ValidateDSLRequest.SerializeToString,
                 response_deserializer=leetcoach_dot_v1_dot_systemmodels__pb2.ValidateDSLResponse.FromString,
                 _registered_method=True)
+        self.GenerateDiagram = channel.unary_unary(
+                '/leetcoach.v1.SystemModelService/GenerateDiagram',
+                request_serializer=leetcoach_dot_v1_dot_systemmodels__pb2.GenerateDiagramRequest.SerializeToString,
+                response_deserializer=leetcoach_dot_v1_dot_systemmodels__pb2.GenerateDiagramResponse.FromString,
+                _registered_method=True)
 
 
 class SystemModelServiceServicer(object):
@@ -35,6 +40,13 @@ class SystemModelServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GenerateDiagram(self, request, context):
+        """Generates a visual diagram based on the DSL code for a section.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_SystemModelServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -42,6 +54,11 @@ def add_SystemModelServiceServicer_to_server(servicer, server):
                     servicer.ValidateDSL,
                     request_deserializer=leetcoach_dot_v1_dot_systemmodels__pb2.ValidateDSLRequest.FromString,
                     response_serializer=leetcoach_dot_v1_dot_systemmodels__pb2.ValidateDSLResponse.SerializeToString,
+            ),
+            'GenerateDiagram': grpc.unary_unary_rpc_method_handler(
+                    servicer.GenerateDiagram,
+                    request_deserializer=leetcoach_dot_v1_dot_systemmodels__pb2.GenerateDiagramRequest.FromString,
+                    response_serializer=leetcoach_dot_v1_dot_systemmodels__pb2.GenerateDiagramResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -73,6 +90,33 @@ class SystemModelService(object):
             '/leetcoach.v1.SystemModelService/ValidateDSL',
             leetcoach_dot_v1_dot_systemmodels__pb2.ValidateDSLRequest.SerializeToString,
             leetcoach_dot_v1_dot_systemmodels__pb2.ValidateDSLResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GenerateDiagram(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/leetcoach.v1.SystemModelService/GenerateDiagram',
+            leetcoach_dot_v1_dot_systemmodels__pb2.GenerateDiagramRequest.SerializeToString,
+            leetcoach_dot_v1_dot_systemmodels__pb2.GenerateDiagramResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -29,7 +29,7 @@ from leetcoach.v1 import content_pb2 as leetcoach_dot_v1_dot_content__pb2
 from google.api import annotations_pb2 as google_dot_api_dot_annotations__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fleetcoach/v1/systemmodels.proto\x12\x0cleetcoach.v1\x1a google/protobuf/field_mask.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x19leetcoach/v1/models.proto\x1a\x1aleetcoach/v1/content.proto\x1a\x1cgoogle/api/annotations.proto\"W\n\x0fValidationError\x12\x12\n\x04line\x18\x01 \x01(\x05R\x04line\x12\x16\n\x06\x63olumn\x18\x02 \x01(\x05R\x06\x63olumn\x12\x18\n\x07message\x18\x03 \x01(\tR\x07message\"d\n\x12ValidateDSLRequest\x12\x1b\n\tdesign_id\x18\x01 \x01(\tR\x08\x64\x65signId\x12\x1d\n\nsection_id\x18\x02 \x01(\tR\tsectionId\x12\x12\n\x04\x63ode\x18\x03 \x01(\tR\x04\x63ode\"g\n\x13ValidateDSLResponse\x12\x19\n\x08is_valid\x18\x01 \x01(\x08R\x07isValid\x12\x35\n\x06\x65rrors\x18\x02 \x03(\x0b\x32\x1d.leetcoach.v1.ValidationErrorR\x06\x65rrors2\xb4\x01\n\x12SystemModelService\x12\x9d\x01\n\x0bValidateDSL\x12 .leetcoach.v1.ValidateDSLRequest\x1a!.leetcoach.v1.ValidateDSLResponse\"I\x82\xd3\xe4\x93\x02\x43\">/api/v1/designs/{design_id}/sections/{section_id}/sdl:validate:\x01*B\x93\x01\n\x10\x63om.leetcoach.v1B\x11SystemmodelsProtoP\x01Z\x1bgithub.com/leetcoach/protos\xa2\x02\x03LXX\xaa\x02\x0cLeetcoach.V1\xca\x02\x0cLeetcoach\\V1\xe2\x02\x18Leetcoach\\V1\\GPBMetadata\xea\x02\rLeetcoach::V1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1fleetcoach/v1/systemmodels.proto\x12\x0cleetcoach.v1\x1a google/protobuf/field_mask.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x19leetcoach/v1/models.proto\x1a\x1aleetcoach/v1/content.proto\x1a\x1cgoogle/api/annotations.proto\"W\n\x0fValidationError\x12\x12\n\x04line\x18\x01 \x01(\x05R\x04line\x12\x16\n\x06\x63olumn\x18\x02 \x01(\x05R\x06\x63olumn\x12\x18\n\x07message\x18\x03 \x01(\tR\x07message\"d\n\x12ValidateDSLRequest\x12\x1b\n\tdesign_id\x18\x01 \x01(\tR\x08\x64\x65signId\x12\x1d\n\nsection_id\x18\x02 \x01(\tR\tsectionId\x12\x12\n\x04\x63ode\x18\x03 \x01(\tR\x04\x63ode\"g\n\x13ValidateDSLResponse\x12\x19\n\x08is_valid\x18\x01 \x01(\x08R\x07isValid\x12\x35\n\x06\x65rrors\x18\x02 \x03(\x0b\x32\x1d.leetcoach.v1.ValidationErrorR\x06\x65rrors\"h\n\x16GenerateDiagramRequest\x12\x1b\n\tdesign_id\x18\x01 \x01(\tR\x08\x64\x65signId\x12\x1d\n\nsection_id\x18\x02 \x01(\tR\tsectionId\x12\x12\n\x04\x63ode\x18\x03 \x01(\tR\x04\x63ode\"\x85\x01\n\x17GenerateDiagramResponse\x12%\n\x0e\x64iagram_format\x18\x01 \x01(\tR\rdiagramFormat\x12\'\n\x0f\x64iagram_content\x18\x02 \x01(\tR\x0e\x64iagramContent\x12\x1a\n\x08warnings\x18\x03 \x03(\tR\x08warnings2\xdf\x02\n\x12SystemModelService\x12\x9d\x01\n\x0bValidateDSL\x12 .leetcoach.v1.ValidateDSLRequest\x1a!.leetcoach.v1.ValidateDSLResponse\"I\x82\xd3\xe4\x93\x02\x43\">/api/v1/designs/{design_id}/sections/{section_id}/sdl:validate:\x01*\x12\xa8\x01\n\x0fGenerateDiagram\x12$.leetcoach.v1.GenerateDiagramRequest\x1a%.leetcoach.v1.GenerateDiagramResponse\"H\x82\xd3\xe4\x93\x02\x42\"=/v1/designs/{design_id}/sections/{section_id}:generateDiagram:\x01*B\x93\x01\n\x10\x63om.leetcoach.v1B\x11SystemmodelsProtoP\x01Z\x1bgithub.com/leetcoach/protos\xa2\x02\x03LXX\xaa\x02\x0cLeetcoach.V1\xca\x02\x0cLeetcoach\\V1\xe2\x02\x18Leetcoach\\V1\\GPBMetadata\xea\x02\rLeetcoach::V1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -39,12 +39,18 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._serialized_options = b'\n\020com.leetcoach.v1B\021SystemmodelsProtoP\001Z\033github.com/leetcoach/protos\242\002\003LXX\252\002\014Leetcoach.V1\312\002\014Leetcoach\\V1\342\002\030Leetcoach\\V1\\GPBMetadata\352\002\rLeetcoach::V1'
   _globals['_SYSTEMMODELSERVICE'].methods_by_name['ValidateDSL']._loaded_options = None
   _globals['_SYSTEMMODELSERVICE'].methods_by_name['ValidateDSL']._serialized_options = b'\202\323\344\223\002C\">/api/v1/designs/{design_id}/sections/{section_id}/sdl:validate:\001*'
+  _globals['_SYSTEMMODELSERVICE'].methods_by_name['GenerateDiagram']._loaded_options = None
+  _globals['_SYSTEMMODELSERVICE'].methods_by_name['GenerateDiagram']._serialized_options = b'\202\323\344\223\002B\"=/v1/designs/{design_id}/sections/{section_id}:generateDiagram:\001*'
   _globals['_VALIDATIONERROR']._serialized_start=216
   _globals['_VALIDATIONERROR']._serialized_end=303
   _globals['_VALIDATEDSLREQUEST']._serialized_start=305
   _globals['_VALIDATEDSLREQUEST']._serialized_end=405
   _globals['_VALIDATEDSLRESPONSE']._serialized_start=407
   _globals['_VALIDATEDSLRESPONSE']._serialized_end=510
-  _globals['_SYSTEMMODELSERVICE']._serialized_start=513
-  _globals['_SYSTEMMODELSERVICE']._serialized_end=693
+  _globals['_GENERATEDIAGRAMREQUEST']._serialized_start=512
+  _globals['_GENERATEDIAGRAMREQUEST']._serialized_end=616
+  _globals['_GENERATEDIAGRAMRESPONSE']._serialized_start=619
+  _globals['_GENERATEDIAGRAMRESPONSE']._serialized_end=752
+  _globals['_SYSTEMMODELSERVICE']._serialized_start=755
+  _globals['_SYSTEMMODELSERVICE']._serialized_end=1106
 # @@protoc_insertion_point(module_scope)

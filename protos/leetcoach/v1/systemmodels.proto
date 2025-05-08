@@ -23,6 +23,15 @@ service SystemModelService {
       body: "*" // Use request body for parameters
     };
   }
+
+  // Generates a visual diagram based on the DSL code for a section.
+  rpc GenerateDiagram(GenerateDiagramRequest) returns (GenerateDiagramResponse) {
+    option (google.api.http) = {
+      // Use POST as it might take parameters in the body eventually (like diagram type)
+      post: "/v1/designs/{design_id}/sections/{section_id}:generateDiagram"
+      body: "*" // Body can be empty for now
+    };
+  }
 }
 
 // Represents a single validation error found in the DSL.
@@ -51,3 +60,30 @@ message ValidateDSLResponse {
   // A list of errors found during validation. Populated only if is_valid is false.
   repeated ValidationError errors = 2;
 }
+
+
+// --- Diagram Generation Messages ---
+message GenerateDiagramRequest {
+  // The ID of the design containing the section.
+  string design_id = 1; // Required, part of the URL path
+
+  // The ID of the section containing the DSL code.
+  string section_id = 2; // Required, part of the URL path
+
+  // Optional: Type of diagram to generate (e.g., "component", "sequence:methodName")
+  // string diagram_type = 3; // Add this later when supporting multiple types
+
+  // Send the code directly to validate and generate diagrams for
+  string code = 3;
+}
+
+message GenerateDiagramResponse {
+  // Format of the diagram content (e.g., "svg", "mermaid", "dot", "png_base64").
+  string diagram_format = 1;
+  // The actual diagram content (e.g., SVG XML string, Mermaid code string).
+  string diagram_content = 2;
+  // Optional: Warnings encountered during generation.
+  repeated string warnings = 3;
+}
+
+

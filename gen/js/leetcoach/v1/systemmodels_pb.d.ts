@@ -108,6 +108,76 @@ export declare type ValidateDSLResponse = Message<"leetcoach.v1.ValidateDSLRespo
 export declare const ValidateDSLResponseSchema: GenMessage<ValidateDSLResponse>;
 
 /**
+ * --- Diagram Generation Messages ---
+ *
+ * @generated from message leetcoach.v1.GenerateDiagramRequest
+ */
+export declare type GenerateDiagramRequest = Message<"leetcoach.v1.GenerateDiagramRequest"> & {
+  /**
+   * The ID of the design containing the section.
+   *
+   * Required, part of the URL path
+   *
+   * @generated from field: string design_id = 1;
+   */
+  designId: string;
+
+  /**
+   * The ID of the section containing the DSL code.
+   *
+   * Required, part of the URL path
+   *
+   * @generated from field: string section_id = 2;
+   */
+  sectionId: string;
+
+  /**
+   * Send the code directly to validate and generate diagrams for
+   *
+   * @generated from field: string code = 3;
+   */
+  code: string;
+};
+
+/**
+ * Describes the message leetcoach.v1.GenerateDiagramRequest.
+ * Use `create(GenerateDiagramRequestSchema)` to create a new message.
+ */
+export declare const GenerateDiagramRequestSchema: GenMessage<GenerateDiagramRequest>;
+
+/**
+ * @generated from message leetcoach.v1.GenerateDiagramResponse
+ */
+export declare type GenerateDiagramResponse = Message<"leetcoach.v1.GenerateDiagramResponse"> & {
+  /**
+   * Format of the diagram content (e.g., "svg", "mermaid", "dot", "png_base64").
+   *
+   * @generated from field: string diagram_format = 1;
+   */
+  diagramFormat: string;
+
+  /**
+   * The actual diagram content (e.g., SVG XML string, Mermaid code string).
+   *
+   * @generated from field: string diagram_content = 2;
+   */
+  diagramContent: string;
+
+  /**
+   * Optional: Warnings encountered during generation.
+   *
+   * @generated from field: repeated string warnings = 3;
+   */
+  warnings: string[];
+};
+
+/**
+ * Describes the message leetcoach.v1.GenerateDiagramResponse.
+ * Use `create(GenerateDiagramResponseSchema)` to create a new message.
+ */
+export declare const GenerateDiagramResponseSchema: GenMessage<GenerateDiagramResponse>;
+
+/**
  * *
  * Service for validating SDL code
  *
@@ -123,6 +193,16 @@ export declare const SystemModelService: GenService<{
     methodKind: "unary";
     input: typeof ValidateDSLRequestSchema;
     output: typeof ValidateDSLResponseSchema;
+  },
+  /**
+   * Generates a visual diagram based on the DSL code for a section.
+   *
+   * @generated from rpc leetcoach.v1.SystemModelService.GenerateDiagram
+   */
+  generateDiagram: {
+    methodKind: "unary";
+    input: typeof GenerateDiagramRequestSchema;
+    output: typeof GenerateDiagramResponseSchema;
   },
 }>;
 

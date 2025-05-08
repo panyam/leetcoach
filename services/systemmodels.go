@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings" // Import strings package
+	"time"
 
 	protos "github.com/panyam/leetcoach/gen/go/leetcoach/v1"
 	"google.golang.org/grpc/codes"
@@ -91,6 +92,41 @@ func (s *SystemModelService) ValidateDSL(ctx context.Context, req *protos.Valida
 		}
 		return &protos.ValidateDSLResponse{IsValid: false, Errors: protoErrors}, nil
 	}
+}
+
+// GenerateDiagram - Stub implementation for now.
+func (s *SystemModelService) GenerateDiagram(ctx context.Context, req *protos.GenerateDiagramRequest) (*protos.GenerateDiagramResponse, error) {
+	designId := req.GetDesignId()
+	sectionId := req.GetSectionId()
+	slog.Info("Received GenerateDiagram request (STUB)", "designId", designId, "sectionId", sectionId)
+
+	// TODO (Phase 3):
+	// 1. Check permissions.
+	// 2. Get DSL content via ContentService.
+	// 3. Parse DSL content.
+	// 4. Traverse AST to generate diagram data (e.g., DOT, Mermaid, SVG).
+	// 5. Return diagram data in response.
+
+	// --- STUB RESPONSE ---
+	// Return a simple placeholder SVG for now.
+	mockSvg := `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100" viewBox="0 0 300 100">
+  <rect x="10" y="10" width="280" height="80" fill="#f0f0f0" stroke="#ccc" rx="5"/>
+  <text x="150" y="55" font-family="sans-serif" font-size="14" fill="#666" text-anchor="middle">
+    Diagram Placeholder (Generated: ` + time.Now().Format(time.Kitchen) + `)
+  </text>
+  <text x="150" y="75" font-family="sans-serif" font-size="10" fill="#999" text-anchor="middle">
+    DSL parsing/generation not yet implemented.
+  </text>
+</svg>`
+
+	return &protos.GenerateDiagramResponse{
+		DiagramFormat:  "svg",
+		DiagramContent: mockSvg,
+	}, nil
+	// --- END STUB ---
+
+	// Real implementation would return error if something goes wrong
+	// return nil, status.Errorf(codes.Unimplemented, "method GenerateDiagram not implemented")
 }
 
 // --- Dummy Parser Logic (Replace with your actual parser call) ---

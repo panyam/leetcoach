@@ -21,7 +21,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SystemModelService_ValidateDSL_FullMethodName = "/leetcoach.v1.SystemModelService/ValidateDSL"
+	SystemModelService_ValidateDSL_FullMethodName     = "/leetcoach.v1.SystemModelService/ValidateDSL"
+	SystemModelService_GenerateDiagram_FullMethodName = "/leetcoach.v1.SystemModelService/GenerateDiagram"
 )
 
 // SystemModelServiceClient is the client API for SystemModelService service.
@@ -33,6 +34,8 @@ const (
 type SystemModelServiceClient interface {
 	// Validates the syntax of the DSL code within a specific section.
 	ValidateDSL(ctx context.Context, in *ValidateDSLRequest, opts ...grpc.CallOption) (*ValidateDSLResponse, error)
+	// Generates a visual diagram based on the DSL code for a section.
+	GenerateDiagram(ctx context.Context, in *GenerateDiagramRequest, opts ...grpc.CallOption) (*GenerateDiagramResponse, error)
 }
 
 type systemModelServiceClient struct {
@@ -53,6 +56,16 @@ func (c *systemModelServiceClient) ValidateDSL(ctx context.Context, in *Validate
 	return out, nil
 }
 
+func (c *systemModelServiceClient) GenerateDiagram(ctx context.Context, in *GenerateDiagramRequest, opts ...grpc.CallOption) (*GenerateDiagramResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateDiagramResponse)
+	err := c.cc.Invoke(ctx, SystemModelService_GenerateDiagram_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SystemModelServiceServer is the server API for SystemModelService service.
 // All implementations should embed UnimplementedSystemModelServiceServer
 // for forward compatibility.
@@ -62,6 +75,8 @@ func (c *systemModelServiceClient) ValidateDSL(ctx context.Context, in *Validate
 type SystemModelServiceServer interface {
 	// Validates the syntax of the DSL code within a specific section.
 	ValidateDSL(context.Context, *ValidateDSLRequest) (*ValidateDSLResponse, error)
+	// Generates a visual diagram based on the DSL code for a section.
+	GenerateDiagram(context.Context, *GenerateDiagramRequest) (*GenerateDiagramResponse, error)
 }
 
 // UnimplementedSystemModelServiceServer should be embedded to have
@@ -73,6 +88,9 @@ type UnimplementedSystemModelServiceServer struct{}
 
 func (UnimplementedSystemModelServiceServer) ValidateDSL(context.Context, *ValidateDSLRequest) (*ValidateDSLResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidateDSL not implemented")
+}
+func (UnimplementedSystemModelServiceServer) GenerateDiagram(context.Context, *GenerateDiagramRequest) (*GenerateDiagramResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateDiagram not implemented")
 }
 func (UnimplementedSystemModelServiceServer) testEmbeddedByValue() {}
 
@@ -112,6 +130,24 @@ func _SystemModelService_ValidateDSL_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SystemModelService_GenerateDiagram_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateDiagramRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SystemModelServiceServer).GenerateDiagram(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SystemModelService_GenerateDiagram_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SystemModelServiceServer).GenerateDiagram(ctx, req.(*GenerateDiagramRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SystemModelService_ServiceDesc is the grpc.ServiceDesc for SystemModelService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -122,6 +158,10 @@ var SystemModelService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateDSL",
 			Handler:    _SystemModelService_ValidateDSL_Handler,
+		},
+		{
+			MethodName: "GenerateDiagram",
+			Handler:    _SystemModelService_GenerateDiagram_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

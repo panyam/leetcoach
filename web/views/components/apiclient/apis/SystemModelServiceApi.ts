@@ -15,18 +15,30 @@
 
 import * as runtime from '../runtime';
 import type {
+  DiagramGenerationMessages,
   RpcStatus,
   SystemModelServiceValidateDSLRequest,
+  V1GenerateDiagramResponse,
   V1ValidateDSLResponse,
 } from '../models/index';
 import {
+    DiagramGenerationMessagesFromJSON,
+    DiagramGenerationMessagesToJSON,
     RpcStatusFromJSON,
     RpcStatusToJSON,
     SystemModelServiceValidateDSLRequestFromJSON,
     SystemModelServiceValidateDSLRequestToJSON,
+    V1GenerateDiagramResponseFromJSON,
+    V1GenerateDiagramResponseToJSON,
     V1ValidateDSLResponseFromJSON,
     V1ValidateDSLResponseToJSON,
 } from '../models/index';
+
+export interface SystemModelServiceGenerateDiagramRequest {
+    designId: string;
+    sectionId: string;
+    body: DiagramGenerationMessages;
+}
 
 export interface SystemModelServiceValidateDSLOperationRequest {
     designId: string;
@@ -38,6 +50,56 @@ export interface SystemModelServiceValidateDSLOperationRequest {
  * 
  */
 export class SystemModelServiceApi extends runtime.BaseAPI {
+
+    /**
+     * Generates a visual diagram based on the DSL code for a section.
+     */
+    async systemModelServiceGenerateDiagramRaw(requestParameters: SystemModelServiceGenerateDiagramRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<V1GenerateDiagramResponse>> {
+        if (requestParameters['designId'] == null) {
+            throw new runtime.RequiredError(
+                'designId',
+                'Required parameter "designId" was null or undefined when calling systemModelServiceGenerateDiagram().'
+            );
+        }
+
+        if (requestParameters['sectionId'] == null) {
+            throw new runtime.RequiredError(
+                'sectionId',
+                'Required parameter "sectionId" was null or undefined when calling systemModelServiceGenerateDiagram().'
+            );
+        }
+
+        if (requestParameters['body'] == null) {
+            throw new runtime.RequiredError(
+                'body',
+                'Required parameter "body" was null or undefined when calling systemModelServiceGenerateDiagram().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        const response = await this.request({
+            path: `/v1/designs/{designId}/sections/{sectionId}:generateDiagram`.replace(`{${"designId"}}`, encodeURIComponent(String(requestParameters['designId']))).replace(`{${"sectionId"}}`, encodeURIComponent(String(requestParameters['sectionId']))),
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: DiagramGenerationMessagesToJSON(requestParameters['body']),
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => V1GenerateDiagramResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Generates a visual diagram based on the DSL code for a section.
+     */
+    async systemModelServiceGenerateDiagram(requestParameters: SystemModelServiceGenerateDiagramRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<V1GenerateDiagramResponse> {
+        const response = await this.systemModelServiceGenerateDiagramRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
 
     /**
      * Validates the syntax of the DSL code within a specific section.

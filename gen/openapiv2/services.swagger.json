@@ -673,6 +673,60 @@
         ]
       }
     },
+    "/v1/designs/{designId}/sections/{sectionId}:generateDiagram": {
+      "post": {
+        "summary": "Generates a visual diagram based on the DSL code for a section.",
+        "operationId": "SystemModelService_GenerateDiagram",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GenerateDiagramResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "designId",
+            "description": "The ID of the design containing the section.\n\nRequired, part of the URL path",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "sectionId",
+            "description": "The ID of the section containing the DSL code.\n\nRequired, part of the URL path",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "title": "Send the code directly to validate and generate diagrams for"
+                }
+              },
+              "title": "--- Diagram Generation Messages ---"
+            }
+          }
+        ],
+        "tags": [
+          "SystemModelService"
+        ]
+      }
+    },
     "/v1/designs/{designId}/sections/{sectionId}:move": {
       "post": {
         "summary": "Moves a section within the Design's section_ids list\nWe could have done this via an UpdateDesign with the changed order but this is \nclearer and only needs to deal with the current (and target) section instead of\nneeding to know all sections for an update.",
@@ -1655,6 +1709,26 @@
         "verifyAnswerPrompt": {
           "type": "string",
           "description": "The default prompt generated and saved for verification."
+        }
+      }
+    },
+    "v1GenerateDiagramResponse": {
+      "type": "object",
+      "properties": {
+        "diagramFormat": {
+          "type": "string",
+          "description": "Format of the diagram content (e.g., \"svg\", \"mermaid\", \"dot\", \"png_base64\")."
+        },
+        "diagramContent": {
+          "type": "string",
+          "description": "The actual diagram content (e.g., SVG XML string, Mermaid code string)."
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional: Warnings encountered during generation."
         }
       }
     },

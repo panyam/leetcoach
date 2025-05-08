@@ -1,7 +1,6 @@
 package views
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"log/slog"
@@ -28,13 +27,14 @@ func (v *DesignEditorPage) SetupDefaults() {
 func (v *DesignEditorPage) Load(r *http.Request, w http.ResponseWriter, vc *ViewContext) (err error, finished bool) {
 	v.Header.Load(r, w, vc)
 	v.SetupDefaults()
-	queryParams := r.URL.Query()
 	v.DesignId = r.PathValue("designId")
-	templateName := queryParams.Get("template")
+	// queryParams := r.URL.Query()
+	// templateName := queryParams.Get("template")
 	loggedInUserId := vc.AuthMiddleware.GetLoggedInUserId(r)
 
 	slog.Info("Loading editor for design with ID: ", "nid", v.DesignId)
 
+	client, _ := vc.ClientMgr.GetDesignSvcClient()
 	if v.DesignId == "" {
 		if loggedInUserId == "" {
 			// For now enforce login even on new
@@ -46,15 +46,24 @@ func (v *DesignEditorPage) Load(r *http.Request, w http.ResponseWriter, vc *View
 			return nil, true
 		}
 		v.IsOwner = true
-		v.Design = &protos.Design{}
-		if v.Design.Name == "" {
-			v.Design.Name = "Untitled Design"
+
+		// create a new design
+		ctx := vc.ClientMgr.ClientContext(nil, loggedInUserId)
+		v.Design = &protos.Design{
+			Name: randomDesignName(),
 		}
-		log.Println("Using template: ", templateName)
+		resp, err := client.CreateDesign(ctx, &protos.CreateDesignRequest{
+			Design: v.Design,
+		})
+		if err != nil {
+			log.Println("Error creating design: ", err)
+			return err, false
+		}
+		http.Redirect(w, r, fmt.Sprintf("/designs/%s/edit", resp.Design.Id), http.StatusFound)
 		// hxgeturl := fmt.Sprintf("/views/designs/MDEditorView?name=%s&description=%s", v.Design.Name, v.Design.Description)
 	} else {
-		client, _ := vc.ClientMgr.GetDesignSvcClient()
-		resp, err := client.GetDesign(context.Background(), &protos.GetDesignRequest{
+		ctx := vc.ClientMgr.ClientContext(nil, loggedInUserId)
+		resp, err := client.GetDesign(ctx, &protos.GetDesignRequest{
 			Id: v.DesignId,
 		})
 		if err != nil {

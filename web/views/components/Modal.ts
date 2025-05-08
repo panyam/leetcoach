@@ -1,4 +1,5 @@
-// components/Modal.ts
+// web/views/components/Modal.ts
+import { TemplateLoader } from './TemplateLoader'; // Import TemplateLoader
 
 /**
  * Modal manager for the application
@@ -14,9 +15,14 @@ export class Modal {
   private modalContent: HTMLElement | null;
   private closeButton: HTMLElement | null;
 
-  // Current modal data
+  private templateLoader: TemplateLoader;
+
+  // Current modal data - including optional callbacks
   private currentTemplateId: string | null = null;
   private currentData: any = null;
+  private onSubmitCallback: ((modalData: any) => void) | null = null; // Store the callback
+  private onApplyCallback: ((modalData: any) => void) | null = null; // Store the Apply callback
+
 
   /**
    * Private constructor for singleton pattern
@@ -28,6 +34,8 @@ export class Modal {
     this.modalPanel = document.getElementById('modal-panel');
     this.modalContent = document.getElementById('modal-content');
     this.closeButton = document.getElementById('modal-close');
+
+    this.templateLoader = new TemplateLoader();
 
     this.bindEvents();
   }
@@ -68,15 +76,35 @@ export class Modal {
       }
     });
 
-    // Generic modal button handlers
-    document.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      
-      // Handle cancel buttons by convention (id ending with "-cancel")
-      if (target.id && target.id.endsWith('-cancel')) {
-        this.hide();
-      }
-    });
+    // --- Event Delegation for Modal Actions ---
+    if (this.modalPanel) { // Listen on a persistent parent element
+        this.modalPanel.addEventListener('click', (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+
+            // Handle generic close/cancel buttons
+            const closeButton = target.closest('button[id$="-cancel"], button[id$="-close"]');
+            if (closeButton) {
+                console.log(`Modal cancel/close button clicked: ${closeButton.id}`);
+                this.hide();
+                return; // Stop further processing
+            }
+
+            // Handle specific actions like submit
+            const actionButton = target.closest('button[data-modal-action]');
+            if (actionButton) {
+                const action = actionButton.getAttribute('data-modal-action');
+                console.log(`Modal action button clicked: ${action}`);
+
+                if (action === 'submit' && this.onSubmitCallback) {
+                    this.onSubmitCallback(this.currentData); // Call the stored callback
+                } else if (action === 'apply' && this.onApplyCallback) {
+                    this.onApplyCallback(this.currentData); // Call the Apply callback
+                    this.hide(); // Typically hide after applying
+                }
+                // Add more actions (e.g., 'apply', 'revise') later if needed
+            }
+        });
+    }
   }
 
   /**
@@ -87,91 +115,79 @@ export class Modal {
   }
 
   /**
-   * Show a modal with content from the specified template
-   * @param templateId ID of the template element
-   * @param data Optional data to pass to the modal
+   * Show a modal with content from the specified template ID.
+   * Uses TemplateLoader to get the content element.
+   * @param templateId ID used in `data-template-id` attribute in TemplateRegistry.html
+   * @param data Optional data to pass to the modal. Can include callbacks like `onSubmit`.
+   * @returns The root HTMLElement of the loaded content, or null if failed.
    */
-  public show(templateId: string, data: any = null): void {
-    if (!this.modalContainer || !this.modalContent) return;
+  public show(templateId: string, data: any = null): HTMLElement | null {
+    if (!this.modalContainer || !this.modalContent) {
+        console.error("Modal container or content area not found.");
+        return null;
+    }
 
-    console.log(`Looking for template: ${templateId}-template`);
-    let templateElement = document.getElementById(`${templateId}-template`);
-    if (!templateElement) {
-      console.error(`Modal template not found: ${templateId}-template`);
-      console.log(`Available templates:`, Array.from(document.querySelectorAll('[id$="-template"]')).map(el => el.id));
-      // Check if we have a template registry to clone from
-      const templateRegistry = document.getElementById('template-registry');
-      if (templateRegistry) {
-         const registeredTemplate = templateRegistry.querySelector(`[data-template-id="${templateId}"]`);
-         if (registeredTemplate) {
-           console.log(`Found template in registry: ${templateId}`);
-           // Clone the template and add it to the body with the expected ID
-           const clonedTemplate = registeredTemplate.cloneNode(true) as HTMLElement;
-           clonedTemplate.id = `${templateId}-template`;
-           clonedTemplate.classList.add('hidden');
-           document.body.appendChild(clonedTemplate);
-
-           // Now try to get the template again
-           templateElement = document.getElementById(`${templateId}-template`);
-         }
-      }
-
-      if (!templateElement) {
-         return; // Still not found, exit
-      }
+    // Use TemplateLoader to get the content element
+    // Load content directly into the modal content area
+    const success = this.templateLoader.loadInto(templateId, this.modalContent);
+    if (!success) {
+         // Error message is already placed into modalContent by loadInto on failure
+         // Ensure modal is still visible
+         this.modalContainer.classList.remove('hidden');
+         setTimeout(() => this.modalContainer.classList.add('modal-active'), 10);
+        return null; // Indicate failure
     }
 
     // Store current modal info
-    // this.currentTemplateId = templateId;
-    this.currentTemplateId = templateId.replace('-template', '');
-    this.currentData = data;
+    this.currentTemplateId = templateId;
+    this.currentData = data || {}; // Ensure data is an object
+    this.onSubmitCallback = data?.onSubmit || null; // Store the submit callback
+    this.onApplyCallback = data?.onApply || null; // Store the apply callback
 
-    // Clear existing content
-    this.modalContent.innerHTML = '';
-
-    // Clone template content
-    const contentElement = templateElement.cloneNode(true) as HTMLElement;
-    contentElement.classList.remove('hidden');
-    contentElement.id = templateId; // Remove the "-template" suffix
-
-    // Add content to modal
-    this.modalContent.appendChild(contentElement);
-
-    // Set data attributes for any data that needs to be accessed later
+    // Set data attributes for non-function data
     if (data) {
       Object.entries(data).forEach(([key, value]) => {
-        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        if (key !== 'onSubmit' && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')) {
           if (this.modalContent) this.modalContent.dataset[key] = String(value);
         }
       });
     }
 
-    // Show modal
+    // Show modal container
     this.modalContainer.classList.remove('hidden');
-    
-    // Trigger animations if needed
+
+    // Trigger animations if needed (add active class after a tick)
     setTimeout(() => {
       this.modalContainer.classList.add('modal-active');
-    }, 10);
+    }, 10); // Small delay ensures transition applies correctly
+
+    const firstElement = this.modalContent//?.firstElementChild as HTMLElement | null;
+    return firstElement;
   }
 
   /**
    * Hide the modal
    */
-  public hide(): void {
-    if (!this.modalContainer) return;
+  public hide(): Promise<void> {
+    return new Promise((resolve) => {
+        if (!this.modalContainer) return;
 
-    // Remove active class first (for animations)
-    this.modalContainer.classList.remove('modal-active');
-    
-    // Hide after a short delay
-    setTimeout(() => {
-      this.modalContainer.classList.add('hidden');
-      
-      // Clear current modal info
-      this.currentTemplateId = null;
-      this.currentData = null;
-    }, 200);
+        // Remove active class first (for animations)
+        this.modalContainer.classList.remove('modal-active');
+
+        // Hide after a short delay
+        setTimeout(() => {
+          this.modalContainer.classList.add('hidden');
+
+          // Clear current modal info
+          this.currentTemplateId = null;
+          this.currentData = null;
+          this.onSubmitCallback = null; // Clear callback
+          this.onApplyCallback = null; // Clear apply callback
+          if(this.modalContent) this.modalContent.innerHTML = ''; // Clear content
+          resolve();
+        }, 200); // Match typical transition duration
+    });
   }
 
   /**
@@ -196,15 +212,15 @@ export class Modal {
   }
 
   /**
-   * Update modal data
+   * Update modal data (excluding callbacks for now)
    */
   public updateData(newData: any): void {
     this.currentData = { ...this.currentData, ...newData };
-    
-    // Update data attributes
+
+    // Update data attributes for non-function data
     if (this.modalContent && newData) {
-      Object.entries(newData).forEach(([key, value]) => {
-        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      Object.entries(newData).forEach(([key, value]) => { // Exclude callbacks when setting data attributes
+         if (key !== 'onSubmit' && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')) {
           if (this.modalContent) this.modalContent.dataset[key] = String(value);
         }
       });
@@ -218,6 +234,3 @@ export class Modal {
     return Modal.getInstance();
   }
 }
-
-// Initialize the component when the DOM is fully loaded
-// document.addEventListener('DOMContentLoaded', () => { Modal.init(); });

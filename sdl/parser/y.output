@@ -1,0 +1,2344 @@
+
+state 0
+	$accept: .File $end 
+	DeclarationList: .    (2)
+
+	.  reduce 2 (src line 168)
+
+	File  goto 1
+	DeclarationList  goto 2
+
+state 1
+	$accept:  File.$end 
+
+	$end  accept
+	.  error
+
+
+state 2
+	File:  DeclarationList.    (1)
+	DeclarationList:  DeclarationList.TopLevelDeclaration 
+
+	SYSTEM  shift 10
+	OPTIONS  shift 11
+	ENUM  shift 12
+	COMPONENT  shift 9
+	IMPORT  shift 13
+	.  reduce 1 (src line 156)
+
+	TopLevelDeclaration  goto 3
+	ComponentDecl  goto 4
+	SystemDecl  goto 5
+	OptionsDecl  goto 6
+	EnumDecl  goto 7
+	ImportDecl  goto 8
+
+state 3
+	DeclarationList:  DeclarationList TopLevelDeclaration.    (3)
+
+	.  reduce 3 (src line 170)
+
+
+state 4
+	TopLevelDeclaration:  ComponentDecl.    (4)
+
+	.  reduce 4 (src line 173)
+
+
+state 5
+	TopLevelDeclaration:  SystemDecl.    (5)
+
+	.  reduce 5 (src line 175)
+
+
+state 6
+	TopLevelDeclaration:  OptionsDecl.    (6)
+
+	.  reduce 6 (src line 176)
+
+
+state 7
+	TopLevelDeclaration:  EnumDecl.    (7)
+
+	.  reduce 7 (src line 177)
+
+
+state 8
+	TopLevelDeclaration:  ImportDecl.    (8)
+
+	.  reduce 8 (src line 178)
+
+
+state 9
+	ComponentDecl:  COMPONENT.IDENTIFIER LBRACE ComponentBodyItemList RBRACE 
+
+	IDENTIFIER  shift 14
+	.  error
+
+
+state 10
+	SystemDecl:  SYSTEM.IDENTIFIER LBRACE SystemBodyItemOptList RBRACE 
+
+	IDENTIFIER  shift 15
+	.  error
+
+
+state 11
+	OptionsDecl:  OPTIONS.LBRACE StmtList RBRACE 
+
+	LBRACE  shift 16
+	.  error
+
+
+state 12
+	EnumDecl:  ENUM.IDENTIFIER LBRACE IdentifierList RBRACE 
+
+	IDENTIFIER  shift 17
+	.  error
+
+
+state 13
+	ImportDecl:  IMPORT.STRING_LITERAL 
+
+	STRING_LITERAL  shift 18
+	.  error
+
+
+state 14
+	ComponentDecl:  COMPONENT IDENTIFIER.LBRACE ComponentBodyItemList RBRACE 
+
+	LBRACE  shift 19
+	.  error
+
+
+state 15
+	SystemDecl:  SYSTEM IDENTIFIER.LBRACE SystemBodyItemOptList RBRACE 
+
+	LBRACE  shift 20
+	.  error
+
+
+state 16
+	OptionsDecl:  OPTIONS LBRACE.StmtList RBRACE 
+	StmtOptList: .    (68)
+
+	.  reduce 68 (src line 478)
+
+	StmtList  goto 21
+	StmtOptList  goto 22
+
+state 17
+	EnumDecl:  ENUM IDENTIFIER.LBRACE IdentifierList RBRACE 
+
+	LBRACE  shift 23
+	.  error
+
+
+state 18
+	ImportDecl:  IMPORT STRING_LITERAL.    (13)
+
+	.  reduce 13 (src line 218)
+
+
+state 19
+	ComponentDecl:  COMPONENT IDENTIFIER LBRACE.ComponentBodyItemList RBRACE 
+	ComponentBodyItemOptList: .    (16)
+
+	.  reduce 16 (src line 239)
+
+	ComponentBodyItemList  goto 24
+	ComponentBodyItemOptList  goto 25
+
+state 20
+	SystemDecl:  SYSTEM IDENTIFIER LBRACE.SystemBodyItemOptList RBRACE 
+	SystemBodyItemOptList: .    (44)
+
+	.  reduce 44 (src line 372)
+
+	SystemBodyItemOptList  goto 26
+
+state 21
+	OptionsDecl:  OPTIONS LBRACE StmtList.RBRACE 
+
+	RBRACE  shift 27
+	.  error
+
+
+state 22
+	StmtList:  StmtOptList.    (67)
+	StmtOptList:  StmtOptList.Stmt 
+
+	error  shift 39
+	LET  shift 40
+	IF  shift 43
+	DISTRIBUTE  shift 70
+	RETURN  shift 42
+	DELAY  shift 45
+	WAIT  shift 44
+	GO  shift 46
+	LOG  shift 47
+	SWITCH  shift 49
+	LBRACE  shift 48
+	RBRACE  reduce 67 (src line 477)
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Stmt  goto 28
+	LetStmt  goto 29
+	ExprStmt  goto 30
+	ReturnStmt  goto 31
+	LogStmt  goto 36
+	SwitchStmt  goto 38
+	WaitStmt  goto 33
+	DelayStmt  goto 34
+	BlockStmt  goto 37
+	Expression  goto 41
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	IfStmt  goto 32
+	DistributeExpr  goto 63
+	GoStmt  goto 35
+
+state 23
+	EnumDecl:  ENUM IDENTIFIER LBRACE.IdentifierList RBRACE 
+
+	IDENTIFIER  shift 72
+	.  error
+
+	IdentifierList  goto 71
+
+state 24
+	ComponentDecl:  COMPONENT IDENTIFIER LBRACE ComponentBodyItemList.RBRACE 
+
+	RBRACE  shift 73
+	.  error
+
+
+state 25
+	ComponentBodyItemList:  ComponentBodyItemOptList.    (15)
+	ComponentBodyItemOptList:  ComponentBodyItemOptList.ComponentBodyItem 
+
+	USES  shift 80
+	METHOD  shift 81
+	COMPONENT  shift 9
+	PARAM  shift 79
+	.  reduce 15 (src line 237)
+
+	ComponentBodyItem  goto 74
+	ComponentDecl  goto 78
+	ParamDecl  goto 75
+	UsesDecl  goto 76
+	MethodDecl  goto 77
+
+state 26
+	SystemDecl:  SYSTEM IDENTIFIER LBRACE SystemBodyItemOptList.RBRACE 
+	SystemBodyItemOptList:  SystemBodyItemOptList.SystemBodyItem 
+
+	LET  shift 40
+	RBRACE  shift 82
+	OPTIONS  shift 11
+	IDENTIFIER  shift 87
+	.  error
+
+	SystemBodyItem  goto 83
+	OptionsDecl  goto 85
+	LetStmt  goto 86
+	InstanceDecl  goto 84
+
+state 27
+	OptionsDecl:  OPTIONS LBRACE StmtList RBRACE.    (9)
+
+	.  reduce 9 (src line 181)
+
+
+state 28
+	StmtOptList:  StmtOptList Stmt.    (69)
+
+	.  reduce 69 (src line 478)
+
+
+state 29
+	Stmt:  LetStmt.    (70)
+
+	.  reduce 70 (src line 480)
+
+
+state 30
+	Stmt:  ExprStmt.    (71)
+
+	.  reduce 71 (src line 482)
+
+
+state 31
+	Stmt:  ReturnStmt.    (72)
+
+	.  reduce 72 (src line 483)
+
+
+state 32
+	Stmt:  IfStmt.    (73)
+
+	.  reduce 73 (src line 484)
+
+
+state 33
+	Stmt:  WaitStmt.    (74)
+
+	.  reduce 74 (src line 485)
+
+
+state 34
+	Stmt:  DelayStmt.    (75)
+
+	.  reduce 75 (src line 486)
+
+
+state 35
+	Stmt:  GoStmt.    (76)
+
+	.  reduce 76 (src line 487)
+
+
+state 36
+	Stmt:  LogStmt.    (77)
+
+	.  reduce 77 (src line 488)
+
+
+state 37
+	Stmt:  BlockStmt.    (78)
+
+	.  reduce 78 (src line 489)
+
+
+state 38
+	Stmt:  SwitchStmt.    (79)
+
+	.  reduce 79 (src line 491)
+
+
+state 39
+	Stmt:  error.SEMICOLON 
+
+	SEMICOLON  shift 88
+	.  error
+
+
+state 40
+	LetStmt:  LET.IDENTIFIER ASSIGN Expression 
+
+	IDENTIFIER  shift 89
+	.  error
+
+
+state 41
+	ExprStmt:  Expression.SEMICOLON 
+
+	SEMICOLON  shift 90
+	.  error
+
+
+state 42
+	ReturnStmt:  RETURN.Expression 
+	ReturnStmt:  RETURN.SEMICOLON 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	SEMICOLON  shift 92
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 91
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 43
+	IfStmt:  IF.Expression BlockStmt IfStmtElseOpt 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 93
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 44
+	WaitStmt:  WAIT.IdentifierList 
+
+	IDENTIFIER  shift 72
+	.  error
+
+	IdentifierList  goto 94
+
+state 45
+	DelayStmt:  DELAY.Expression 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 95
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 46
+	GoStmt:  GO.IDENTIFIER ASSIGN BlockStmt 
+	GoStmt:  GO.BlockStmt 
+	GoStmt:  GO.IDENTIFIER ASSIGN Expression SEMICOLON 
+
+	LBRACE  shift 48
+	IDENTIFIER  shift 96
+	.  error
+
+	BlockStmt  goto 97
+
+state 47
+	LogStmt:  LOG.Expression CommaExpressionListOpt 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 98
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 48
+	BlockStmt:  LBRACE.StmtList RBRACE 
+	StmtOptList: .    (68)
+
+	.  reduce 68 (src line 478)
+
+	StmtList  goto 99
+	StmtOptList  goto 22
+
+state 49
+	SwitchStmt:  SWITCH.Expression LBRACE RBRACE 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 100
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 50
+	Expression:  OrExpr.    (111)
+	OrExpr:  OrExpr.OR AndBoolExpr 
+
+	OR  shift 101
+	.  reduce 111 (src line 644)
+
+
+state 51
+	OrExpr:  AndBoolExpr.    (112)
+	AndBoolExpr:  AndBoolExpr.AND CmpExpr 
+
+	AND  shift 102
+	.  reduce 112 (src line 645)
+
+
+state 52
+	AndBoolExpr:  CmpExpr.    (114)
+
+	.  reduce 114 (src line 649)
+
+
+53: shift/reduce conflict (shift 110(4), red'n 116(0)) on MINUS
+state 53
+	CmpExpr:  AddExpr.    (116)
+	CmpExpr:  AddExpr.EQ AddExpr 
+	CmpExpr:  AddExpr.NEQ AddExpr 
+	CmpExpr:  AddExpr.LT AddExpr 
+	CmpExpr:  AddExpr.LTE AddExpr 
+	CmpExpr:  AddExpr.GT AddExpr 
+	CmpExpr:  AddExpr.GTE AddExpr 
+	AddExpr:  AddExpr.PLUS MulExpr 
+	AddExpr:  AddExpr.MINUS MulExpr 
+
+	MINUS  shift 110
+	EQ  shift 103
+	NEQ  shift 104
+	LT  shift 105
+	LTE  shift 106
+	GT  shift 107
+	GTE  shift 108
+	PLUS  shift 109
+	.  reduce 116 (src line 654)
+
+
+state 54
+	AddExpr:  MulExpr.    (123)
+	MulExpr:  MulExpr.MUL UnaryExpr 
+	MulExpr:  MulExpr.DIV UnaryExpr 
+	MulExpr:  MulExpr.MOD UnaryExpr 
+
+	MUL  shift 111
+	DIV  shift 112
+	MOD  shift 113
+	.  reduce 123 (src line 663)
+
+
+state 55
+	MulExpr:  UnaryExpr.    (126)
+
+	.  reduce 126 (src line 669)
+
+
+56: shift/reduce conflict (shift 115(0), red'n 130(0)) on LPAREN
+state 56
+	UnaryExpr:  PrimaryExpr.    (130)
+	MemberAccessExpr:  PrimaryExpr.DOT IDENTIFIER 
+	CallExpr:  PrimaryExpr.LPAREN RPAREN 
+	CallExpr:  PrimaryExpr.LPAREN ArgList RPAREN 
+
+	LPAREN  shift 115
+	DOT  shift 114
+	.  reduce 130 (src line 675)
+
+
+state 57
+	UnaryExpr:  NOT.UnaryExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	UnaryExpr  goto 116
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 58
+	UnaryExpr:  MINUS.UnaryExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	UnaryExpr  goto 117
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 59
+	PrimaryExpr:  LiteralExpr.    (133)
+
+	.  reduce 133 (src line 681)
+
+
+state 60
+	PrimaryExpr:  IDENTIFIER.    (134)
+
+	.  reduce 134 (src line 683)
+
+
+state 61
+	PrimaryExpr:  MemberAccessExpr.    (135)
+
+	.  reduce 135 (src line 684)
+
+
+state 62
+	PrimaryExpr:  CallExpr.    (136)
+
+	.  reduce 136 (src line 685)
+
+
+state 63
+	PrimaryExpr:  DistributeExpr.    (137)
+
+	.  reduce 137 (src line 686)
+
+
+state 64
+	PrimaryExpr:  LPAREN.Expression RPAREN 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 118
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 65
+	LiteralExpr:  INT_LITERAL.    (139)
+
+	.  reduce 139 (src line 691)
+
+
+state 66
+	LiteralExpr:  FLOAT_LITERAL.    (140)
+
+	.  reduce 140 (src line 696)
+
+
+state 67
+	LiteralExpr:  STRING_LITERAL.    (141)
+
+	.  reduce 141 (src line 697)
+
+
+state 68
+	LiteralExpr:  BOOL_LITERAL.    (142)
+
+	.  reduce 142 (src line 698)
+
+
+state 69
+	LiteralExpr:  DURATION_LITERAL.    (143)
+
+	.  reduce 143 (src line 699)
+
+
+state 70
+	DistributeExpr:  DISTRIBUTE.TotalClauseOpt LBRACE DistributeExprCaseListOpt DefaultCaseExprOpt RBRACE 
+	TotalClauseOpt: .    (99)
+
+	LPAREN  shift 120
+	.  reduce 99 (src line 607)
+
+	TotalClauseOpt  goto 119
+
+state 71
+	EnumDecl:  ENUM IDENTIFIER LBRACE IdentifierList.RBRACE 
+	IdentifierList:  IdentifierList.COMMA IDENTIFIER 
+
+	RBRACE  shift 121
+	COMMA  shift 122
+	.  error
+
+
+state 72
+	IdentifierList:  IDENTIFIER.    (11)
+
+	.  reduce 11 (src line 213)
+
+
+state 73
+	ComponentDecl:  COMPONENT IDENTIFIER LBRACE ComponentBodyItemList RBRACE.    (14)
+
+	.  reduce 14 (src line 227)
+
+
+state 74
+	ComponentBodyItemOptList:  ComponentBodyItemOptList ComponentBodyItem.    (17)
+
+	.  reduce 17 (src line 241)
+
+
+state 75
+	ComponentBodyItem:  ParamDecl.    (18)
+
+	.  reduce 18 (src line 243)
+
+
+state 76
+	ComponentBodyItem:  UsesDecl.    (19)
+
+	.  reduce 19 (src line 245)
+
+
+state 77
+	ComponentBodyItem:  MethodDecl.    (20)
+
+	.  reduce 20 (src line 246)
+
+
+state 78
+	ComponentBodyItem:  ComponentDecl.    (21)
+
+	.  reduce 21 (src line 247)
+
+
+state 79
+	ParamDecl:  PARAM.IDENTIFIER COLON TypeName 
+	ParamDecl:  PARAM.IDENTIFIER COLON TypeName ASSIGN Expression 
+
+	IDENTIFIER  shift 123
+	.  error
+
+
+state 80
+	UsesDecl:  USES.IDENTIFIER COLON IDENTIFIER 
+
+	IDENTIFIER  shift 124
+	.  error
+
+
+state 81
+	MethodDecl:  METHOD.IDENTIFIER LPAREN MethodParamListOpt RPAREN BlockStmt 
+	MethodDecl:  METHOD.IDENTIFIER LPAREN MethodParamListOpt RPAREN COLON TypeName BlockStmt 
+
+	IDENTIFIER  shift 125
+	.  error
+
+
+state 82
+	SystemDecl:  SYSTEM IDENTIFIER LBRACE SystemBodyItemOptList RBRACE.    (40)
+
+	.  reduce 40 (src line 354)
+
+
+state 83
+	SystemBodyItemOptList:  SystemBodyItemOptList SystemBodyItem.    (45)
+
+	.  reduce 45 (src line 374)
+
+
+state 84
+	SystemBodyItem:  InstanceDecl.    (41)
+
+	.  reduce 41 (src line 365)
+
+
+state 85
+	SystemBodyItem:  OptionsDecl.    (42)
+
+	.  reduce 42 (src line 368)
+
+
+state 86
+	SystemBodyItem:  LetStmt.    (43)
+
+	.  reduce 43 (src line 369)
+
+
+state 87
+	InstanceDecl:  IDENTIFIER.COLON IDENTIFIER 
+	InstanceDecl:  IDENTIFIER.COLON IDENTIFIER ASSIGN LBRACE AssignListOpt RBRACE 
+
+	COLON  shift 126
+	.  error
+
+
+state 88
+	Stmt:  error SEMICOLON.    (80)
+
+	.  reduce 80 (src line 493)
+
+
+state 89
+	LetStmt:  LET IDENTIFIER.ASSIGN Expression 
+
+	ASSIGN  shift 127
+	.  error
+
+
+state 90
+	ExprStmt:  Expression SEMICOLON.    (84)
+
+	.  reduce 84 (src line 526)
+
+
+state 91
+	ReturnStmt:  RETURN Expression.    (85)
+
+	.  reduce 85 (src line 530)
+
+
+state 92
+	ReturnStmt:  RETURN SEMICOLON.    (86)
+
+	.  reduce 86 (src line 532)
+
+
+state 93
+	IfStmt:  IF Expression.BlockStmt IfStmtElseOpt 
+
+	LBRACE  shift 48
+	.  error
+
+	BlockStmt  goto 128
+
+state 94
+	IdentifierList:  IdentifierList.COMMA IDENTIFIER 
+	WaitStmt:  WAIT IdentifierList.    (88)
+
+	COMMA  shift 122
+	.  reduce 88 (src line 539)
+
+
+state 95
+	DelayStmt:  DELAY Expression.    (87)
+
+	.  reduce 87 (src line 535)
+
+
+state 96
+	GoStmt:  GO IDENTIFIER.ASSIGN BlockStmt 
+	GoStmt:  GO IDENTIFIER.ASSIGN Expression SEMICOLON 
+
+	ASSIGN  shift 129
+	.  error
+
+
+state 97
+	GoStmt:  GO BlockStmt.    (108)
+
+	.  reduce 108 (src line 631)
+
+
+state 98
+	LogStmt:  LOG Expression.CommaExpressionListOpt 
+	CommaExpressionListOpt: .    (92)
+
+	COMMA  shift 131
+	.  reduce 92 (src line 572)
+
+	CommaExpressionListOpt  goto 130
+
+state 99
+	BlockStmt:  LBRACE StmtList.RBRACE 
+
+	RBRACE  shift 132
+	.  error
+
+
+state 100
+	SwitchStmt:  SWITCH Expression.LBRACE RBRACE 
+
+	LBRACE  shift 133
+	.  error
+
+
+state 101
+	OrExpr:  OrExpr OR.AndBoolExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	AndBoolExpr  goto 134
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 102
+	AndBoolExpr:  AndBoolExpr AND.CmpExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	CmpExpr  goto 135
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 103
+	CmpExpr:  AddExpr EQ.AddExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	AddExpr  goto 136
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 104
+	CmpExpr:  AddExpr NEQ.AddExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	AddExpr  goto 137
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 105
+	CmpExpr:  AddExpr LT.AddExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	AddExpr  goto 138
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 106
+	CmpExpr:  AddExpr LTE.AddExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	AddExpr  goto 139
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 107
+	CmpExpr:  AddExpr GT.AddExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	AddExpr  goto 140
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 108
+	CmpExpr:  AddExpr GTE.AddExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	AddExpr  goto 141
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 109
+	AddExpr:  AddExpr PLUS.MulExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	MulExpr  goto 142
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 110
+	AddExpr:  AddExpr MINUS.MulExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	MulExpr  goto 143
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 111
+	MulExpr:  MulExpr MUL.UnaryExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	UnaryExpr  goto 144
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 112
+	MulExpr:  MulExpr DIV.UnaryExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	UnaryExpr  goto 145
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 113
+	MulExpr:  MulExpr MOD.UnaryExpr 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	UnaryExpr  goto 146
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 114
+	MemberAccessExpr:  PrimaryExpr DOT.IDENTIFIER 
+
+	IDENTIFIER  shift 147
+	.  error
+
+
+state 115
+	CallExpr:  PrimaryExpr LPAREN.RPAREN 
+	CallExpr:  PrimaryExpr LPAREN.ArgList RPAREN 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	RPAREN  shift 148
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 150
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	ArgList  goto 149
+	DistributeExpr  goto 63
+
+state 116
+	UnaryExpr:  NOT UnaryExpr.    (131)
+
+	.  reduce 131 (src line 677)
+
+
+state 117
+	UnaryExpr:  MINUS UnaryExpr.    (132)
+
+	.  reduce 132 (src line 678)
+
+
+state 118
+	PrimaryExpr:  LPAREN Expression.RPAREN 
+
+	RPAREN  shift 151
+	.  error
+
+
+state 119
+	DistributeExpr:  DISTRIBUTE TotalClauseOpt.LBRACE DistributeExprCaseListOpt DefaultCaseExprOpt RBRACE 
+
+	LBRACE  shift 152
+	.  error
+
+
+state 120
+	TotalClauseOpt:  LPAREN.Expression RPAREN 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 153
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 121
+	EnumDecl:  ENUM IDENTIFIER LBRACE IdentifierList RBRACE.    (10)
+
+	.  reduce 10 (src line 203)
+
+
+state 122
+	IdentifierList:  IdentifierList COMMA.IDENTIFIER 
+
+	IDENTIFIER  shift 154
+	.  error
+
+
+state 123
+	ParamDecl:  PARAM IDENTIFIER.COLON TypeName 
+	ParamDecl:  PARAM IDENTIFIER.COLON TypeName ASSIGN Expression 
+
+	COLON  shift 155
+	.  error
+
+
+state 124
+	UsesDecl:  USES IDENTIFIER.COLON IDENTIFIER 
+
+	COLON  shift 156
+	.  error
+
+
+state 125
+	MethodDecl:  METHOD IDENTIFIER.LPAREN MethodParamListOpt RPAREN BlockStmt 
+	MethodDecl:  METHOD IDENTIFIER.LPAREN MethodParamListOpt RPAREN COLON TypeName BlockStmt 
+
+	LPAREN  shift 157
+	.  error
+
+
+state 126
+	InstanceDecl:  IDENTIFIER COLON.IDENTIFIER 
+	InstanceDecl:  IDENTIFIER COLON.IDENTIFIER ASSIGN LBRACE AssignListOpt RBRACE 
+
+	IDENTIFIER  shift 158
+	.  error
+
+
+state 127
+	LetStmt:  LET IDENTIFIER ASSIGN.Expression 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 159
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 128
+	IfStmt:  IF Expression BlockStmt.IfStmtElseOpt 
+	IfStmtElseOpt: .    (95)
+
+	ELSE  shift 161
+	.  reduce 95 (src line 595)
+
+	IfStmtElseOpt  goto 160
+
+state 129
+	GoStmt:  GO IDENTIFIER ASSIGN.BlockStmt 
+	GoStmt:  GO IDENTIFIER ASSIGN.Expression SEMICOLON 
+
+	DISTRIBUTE  shift 70
+	LBRACE  shift 48
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	BlockStmt  goto 162
+	Expression  goto 163
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 130
+	LogStmt:  LOG Expression CommaExpressionListOpt.    (91)
+
+	.  reduce 91 (src line 555)
+
+
+state 131
+	CommaExpressionListOpt:  COMMA.Expression CommaExpressionListOpt 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 164
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 132
+	BlockStmt:  LBRACE StmtList RBRACE.    (81)
+
+	.  reduce 81 (src line 497)
+
+
+state 133
+	SwitchStmt:  SWITCH Expression LBRACE.RBRACE 
+
+	RBRACE  shift 165
+	.  error
+
+
+state 134
+	OrExpr:  OrExpr OR AndBoolExpr.    (113)
+	AndBoolExpr:  AndBoolExpr.AND CmpExpr 
+
+	AND  shift 102
+	.  reduce 113 (src line 646)
+
+
+state 135
+	AndBoolExpr:  AndBoolExpr AND CmpExpr.    (115)
+
+	.  reduce 115 (src line 651)
+
+
+state 136
+	CmpExpr:  AddExpr EQ AddExpr.    (117)
+	AddExpr:  AddExpr.PLUS MulExpr 
+	AddExpr:  AddExpr.MINUS MulExpr 
+
+	MINUS  shift 110
+	PLUS  shift 109
+	.  reduce 117 (src line 655)
+
+
+state 137
+	CmpExpr:  AddExpr NEQ AddExpr.    (118)
+	AddExpr:  AddExpr.PLUS MulExpr 
+	AddExpr:  AddExpr.MINUS MulExpr 
+
+	MINUS  shift 110
+	PLUS  shift 109
+	.  reduce 118 (src line 656)
+
+
+state 138
+	CmpExpr:  AddExpr LT AddExpr.    (119)
+	AddExpr:  AddExpr.PLUS MulExpr 
+	AddExpr:  AddExpr.MINUS MulExpr 
+
+	MINUS  shift 110
+	PLUS  shift 109
+	.  reduce 119 (src line 657)
+
+
+state 139
+	CmpExpr:  AddExpr LTE AddExpr.    (120)
+	AddExpr:  AddExpr.PLUS MulExpr 
+	AddExpr:  AddExpr.MINUS MulExpr 
+
+	MINUS  shift 110
+	PLUS  shift 109
+	.  reduce 120 (src line 658)
+
+
+state 140
+	CmpExpr:  AddExpr GT AddExpr.    (121)
+	AddExpr:  AddExpr.PLUS MulExpr 
+	AddExpr:  AddExpr.MINUS MulExpr 
+
+	MINUS  shift 110
+	PLUS  shift 109
+	.  reduce 121 (src line 659)
+
+
+state 141
+	CmpExpr:  AddExpr GTE AddExpr.    (122)
+	AddExpr:  AddExpr.PLUS MulExpr 
+	AddExpr:  AddExpr.MINUS MulExpr 
+
+	MINUS  shift 110
+	PLUS  shift 109
+	.  reduce 122 (src line 660)
+
+
+state 142
+	AddExpr:  AddExpr PLUS MulExpr.    (124)
+	MulExpr:  MulExpr.MUL UnaryExpr 
+	MulExpr:  MulExpr.DIV UnaryExpr 
+	MulExpr:  MulExpr.MOD UnaryExpr 
+
+	MUL  shift 111
+	DIV  shift 112
+	MOD  shift 113
+	.  reduce 124 (src line 665)
+
+
+state 143
+	AddExpr:  AddExpr MINUS MulExpr.    (125)
+	MulExpr:  MulExpr.MUL UnaryExpr 
+	MulExpr:  MulExpr.DIV UnaryExpr 
+	MulExpr:  MulExpr.MOD UnaryExpr 
+
+	MUL  shift 111
+	DIV  shift 112
+	MOD  shift 113
+	.  reduce 125 (src line 666)
+
+
+state 144
+	MulExpr:  MulExpr MUL UnaryExpr.    (127)
+
+	.  reduce 127 (src line 670)
+
+
+state 145
+	MulExpr:  MulExpr DIV UnaryExpr.    (128)
+
+	.  reduce 128 (src line 671)
+
+
+state 146
+	MulExpr:  MulExpr MOD UnaryExpr.    (129)
+
+	.  reduce 129 (src line 672)
+
+
+state 147
+	MemberAccessExpr:  PrimaryExpr DOT IDENTIFIER.    (144)
+
+	.  reduce 144 (src line 702)
+
+
+state 148
+	CallExpr:  PrimaryExpr LPAREN RPAREN.    (145)
+
+	.  reduce 145 (src line 712)
+
+
+state 149
+	CallExpr:  PrimaryExpr LPAREN ArgList.RPAREN 
+	ArgList:  ArgList.COMMA Expression 
+
+	RPAREN  shift 166
+	COMMA  shift 167
+	.  error
+
+
+state 150
+	ArgList:  Expression.    (149)
+
+	.  reduce 149 (src line 739)
+
+
+state 151
+	PrimaryExpr:  LPAREN Expression RPAREN.    (138)
+
+	.  reduce 138 (src line 688)
+
+
+state 152
+	DistributeExpr:  DISTRIBUTE TotalClauseOpt LBRACE.DistributeExprCaseListOpt DefaultCaseExprOpt RBRACE 
+	DistributeExprCaseListOpt: .    (152)
+
+	.  reduce 152 (src line 751)
+
+	DistributeExprCaseListOpt  goto 168
+
+state 153
+	TotalClauseOpt:  LPAREN Expression.RPAREN 
+
+	RPAREN  shift 169
+	.  error
+
+
+state 154
+	IdentifierList:  IdentifierList COMMA IDENTIFIER.    (12)
+
+	.  reduce 12 (src line 215)
+
+
+state 155
+	ParamDecl:  PARAM IDENTIFIER COLON.TypeName 
+	ParamDecl:  PARAM IDENTIFIER COLON.TypeName ASSIGN Expression 
+
+	INT  shift 173
+	FLOAT  shift 174
+	BOOL  shift 176
+	STRING  shift 175
+	DURATION  shift 177
+	IDENTIFIER  shift 172
+	.  error
+
+	TypeName  goto 170
+	PrimitiveType  goto 171
+
+state 156
+	UsesDecl:  USES IDENTIFIER COLON.IDENTIFIER 
+
+	IDENTIFIER  shift 178
+	.  error
+
+
+state 157
+	MethodDecl:  METHOD IDENTIFIER LPAREN.MethodParamListOpt RPAREN BlockStmt 
+	MethodDecl:  METHOD IDENTIFIER LPAREN.MethodParamListOpt RPAREN COLON TypeName BlockStmt 
+	MethodParamListOpt: .    (34)
+
+	IDENTIFIER  shift 182
+	.  reduce 34 (src line 325)
+
+	MethodParamDecl  goto 181
+	MethodParamList  goto 180
+	MethodParamListOpt  goto 179
+
+state 158
+	InstanceDecl:  IDENTIFIER COLON IDENTIFIER.    (46)
+	InstanceDecl:  IDENTIFIER COLON IDENTIFIER.ASSIGN LBRACE AssignListOpt RBRACE 
+
+	ASSIGN  shift 183
+	.  reduce 46 (src line 377)
+
+
+state 159
+	LetStmt:  LET IDENTIFIER ASSIGN Expression.    (82)
+
+	.  reduce 82 (src line 503)
+
+
+state 160
+	IfStmt:  IF Expression BlockStmt IfStmtElseOpt.    (94)
+
+	.  reduce 94 (src line 582)
+
+
+state 161
+	IfStmtElseOpt:  ELSE.IfStmt 
+	IfStmtElseOpt:  ELSE.BlockStmt 
+
+	IF  shift 43
+	LBRACE  shift 48
+	.  error
+
+	BlockStmt  goto 185
+	IfStmt  goto 184
+
+state 162
+	GoStmt:  GO IDENTIFIER ASSIGN BlockStmt.    (107)
+
+	.  reduce 107 (src line 627)
+
+
+state 163
+	GoStmt:  GO IDENTIFIER ASSIGN Expression.SEMICOLON 
+
+	SEMICOLON  shift 186
+	.  error
+
+
+state 164
+	CommaExpressionListOpt:  COMMA Expression.CommaExpressionListOpt 
+	CommaExpressionListOpt: .    (92)
+
+	COMMA  shift 131
+	.  reduce 92 (src line 572)
+
+	CommaExpressionListOpt  goto 187
+
+state 165
+	SwitchStmt:  SWITCH Expression LBRACE RBRACE.    (110)
+
+	.  reduce 110 (src line 640)
+
+
+state 166
+	CallExpr:  PrimaryExpr LPAREN ArgList RPAREN.    (146)
+
+	.  reduce 146 (src line 720)
+
+
+state 167
+	ArgList:  ArgList COMMA.Expression 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 188
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 168
+	DistributeExpr:  DISTRIBUTE TotalClauseOpt LBRACE DistributeExprCaseListOpt.DefaultCaseExprOpt RBRACE 
+	DistributeExprCaseListOpt:  DistributeExprCaseListOpt.DistributeExprCase 
+	DefaultCaseExprOpt: .    (155)
+
+	DISTRIBUTE  shift 70
+	DEFAULT  shift 193
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  reduce 155 (src line 763)
+
+	Expression  goto 192
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DefaultCaseExpr  goto 191
+	DistributeExpr  goto 63
+	DefaultCaseExprOpt  goto 189
+	DistributeExprCase  goto 190
+
+state 169
+	TotalClauseOpt:  LPAREN Expression RPAREN.    (100)
+
+	.  reduce 100 (src line 607)
+
+
+state 170
+	ParamDecl:  PARAM IDENTIFIER COLON TypeName.    (22)
+	ParamDecl:  PARAM IDENTIFIER COLON TypeName.ASSIGN Expression 
+
+	ASSIGN  shift 194
+	.  reduce 22 (src line 250)
+
+
+state 171
+	TypeName:  PrimitiveType.    (24)
+
+	.  reduce 24 (src line 268)
+
+
+state 172
+	TypeName:  IDENTIFIER.    (25)
+
+	.  reduce 25 (src line 270)
+
+
+state 173
+	PrimitiveType:  INT.    (26)
+
+	.  reduce 26 (src line 281)
+
+
+state 174
+	PrimitiveType:  FLOAT.    (27)
+
+	.  reduce 27 (src line 283)
+
+
+state 175
+	PrimitiveType:  STRING.    (28)
+
+	.  reduce 28 (src line 284)
+
+
+state 176
+	PrimitiveType:  BOOL.    (29)
+
+	.  reduce 29 (src line 285)
+
+
+state 177
+	PrimitiveType:  DURATION.    (30)
+
+	.  reduce 30 (src line 286)
+
+
+state 178
+	UsesDecl:  USES IDENTIFIER COLON IDENTIFIER.    (31)
+
+	.  reduce 31 (src line 293)
+
+
+state 179
+	MethodDecl:  METHOD IDENTIFIER LPAREN MethodParamListOpt.RPAREN BlockStmt 
+	MethodDecl:  METHOD IDENTIFIER LPAREN MethodParamListOpt.RPAREN COLON TypeName BlockStmt 
+
+	RPAREN  shift 195
+	.  error
+
+
+state 180
+	MethodParamListOpt:  MethodParamList.    (35)
+	MethodParamList:  MethodParamList.COMMA MethodParamDecl 
+
+	COMMA  shift 196
+	.  reduce 35 (src line 327)
+
+
+state 181
+	MethodParamList:  MethodParamDecl.    (36)
+
+	.  reduce 36 (src line 330)
+
+
+state 182
+	MethodParamDecl:  IDENTIFIER.COLON TypeName 
+	MethodParamDecl:  IDENTIFIER.COLON TypeName ASSIGN Expression 
+
+	COLON  shift 197
+	.  error
+
+
+state 183
+	InstanceDecl:  IDENTIFIER COLON IDENTIFIER ASSIGN.LBRACE AssignListOpt RBRACE 
+
+	LBRACE  shift 198
+	.  error
+
+
+state 184
+	IfStmtElseOpt:  ELSE IfStmt.    (96)
+
+	.  reduce 96 (src line 597)
+
+
+state 185
+	IfStmtElseOpt:  ELSE BlockStmt.    (97)
+
+	.  reduce 97 (src line 598)
+
+
+state 186
+	GoStmt:  GO IDENTIFIER ASSIGN Expression SEMICOLON.    (109)
+
+	.  reduce 109 (src line 634)
+
+
+state 187
+	CommaExpressionListOpt:  COMMA Expression CommaExpressionListOpt.    (93)
+
+	.  reduce 93 (src line 574)
+
+
+state 188
+	ArgList:  ArgList COMMA Expression.    (150)
+
+	.  reduce 150 (src line 741)
+
+
+state 189
+	DistributeExpr:  DISTRIBUTE TotalClauseOpt LBRACE DistributeExprCaseListOpt DefaultCaseExprOpt.RBRACE 
+
+	RBRACE  shift 199
+	.  error
+
+
+state 190
+	DistributeExprCaseListOpt:  DistributeExprCaseListOpt DistributeExprCase.    (153)
+
+	.  reduce 153 (src line 753)
+
+
+state 191
+	DefaultCaseExprOpt:  DefaultCaseExpr.    (156)
+
+	.  reduce 156 (src line 765)
+
+
+state 192
+	DistributeExprCase:  Expression.ARROW Expression 
+
+	ARROW  shift 200
+	.  error
+
+
+state 193
+	DefaultCaseExpr:  DEFAULT.ARROW Expression 
+
+	ARROW  shift 201
+	.  error
+
+
+state 194
+	ParamDecl:  PARAM IDENTIFIER COLON TypeName ASSIGN.Expression 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 202
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 195
+	MethodDecl:  METHOD IDENTIFIER LPAREN MethodParamListOpt RPAREN.BlockStmt 
+	MethodDecl:  METHOD IDENTIFIER LPAREN MethodParamListOpt RPAREN.COLON TypeName BlockStmt 
+
+	LBRACE  shift 48
+	COLON  shift 204
+	.  error
+
+	BlockStmt  goto 203
+
+state 196
+	MethodParamList:  MethodParamList COMMA.MethodParamDecl 
+
+	IDENTIFIER  shift 182
+	.  error
+
+	MethodParamDecl  goto 205
+
+state 197
+	MethodParamDecl:  IDENTIFIER COLON.TypeName 
+	MethodParamDecl:  IDENTIFIER COLON.TypeName ASSIGN Expression 
+
+	INT  shift 173
+	FLOAT  shift 174
+	BOOL  shift 176
+	STRING  shift 175
+	DURATION  shift 177
+	IDENTIFIER  shift 172
+	.  error
+
+	TypeName  goto 206
+	PrimitiveType  goto 171
+
+state 198
+	InstanceDecl:  IDENTIFIER COLON IDENTIFIER ASSIGN LBRACE.AssignListOpt RBRACE 
+	AssignListOpt: .    (48)
+
+	IDENTIFIER  shift 210
+	.  reduce 48 (src line 396)
+
+	Assignment  goto 209
+	AssignList  goto 208
+	AssignListOpt  goto 207
+
+state 199
+	DistributeExpr:  DISTRIBUTE TotalClauseOpt LBRACE DistributeExprCaseListOpt DefaultCaseExprOpt RBRACE.    (151)
+
+	.  reduce 151 (src line 745)
+
+
+state 200
+	DistributeExprCase:  Expression ARROW.Expression 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 211
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 201
+	DefaultCaseExpr:  DEFAULT ARROW.Expression 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 212
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 202
+	ParamDecl:  PARAM IDENTIFIER COLON TypeName ASSIGN Expression.    (23)
+
+	.  reduce 23 (src line 258)
+
+
+state 203
+	MethodDecl:  METHOD IDENTIFIER LPAREN MethodParamListOpt RPAREN BlockStmt.    (32)
+
+	.  reduce 32 (src line 305)
+
+
+state 204
+	MethodDecl:  METHOD IDENTIFIER LPAREN MethodParamListOpt RPAREN COLON.TypeName BlockStmt 
+
+	INT  shift 173
+	FLOAT  shift 174
+	BOOL  shift 176
+	STRING  shift 175
+	DURATION  shift 177
+	IDENTIFIER  shift 172
+	.  error
+
+	TypeName  goto 213
+	PrimitiveType  goto 171
+
+state 205
+	MethodParamList:  MethodParamList COMMA MethodParamDecl.    (37)
+
+	.  reduce 37 (src line 332)
+
+
+state 206
+	MethodParamDecl:  IDENTIFIER COLON TypeName.    (38)
+	MethodParamDecl:  IDENTIFIER COLON TypeName.ASSIGN Expression 
+
+	ASSIGN  shift 214
+	.  reduce 38 (src line 335)
+
+
+state 207
+	InstanceDecl:  IDENTIFIER COLON IDENTIFIER ASSIGN LBRACE AssignListOpt.RBRACE 
+
+	RBRACE  shift 215
+	.  error
+
+
+state 208
+	AssignListOpt:  AssignList.    (49)
+	AssignList:  AssignList.Assignment 
+
+	IDENTIFIER  shift 210
+	.  reduce 49 (src line 398)
+
+	Assignment  goto 216
+
+state 209
+	AssignList:  Assignment.    (50)
+
+	.  reduce 50 (src line 401)
+
+
+state 210
+	Assignment:  IDENTIFIER.ASSIGN Expression 
+
+	ASSIGN  shift 217
+	.  error
+
+
+state 211
+	DistributeExprCase:  Expression ARROW Expression.    (154)
+
+	.  reduce 154 (src line 756)
+
+
+state 212
+	DefaultCaseExpr:  DEFAULT ARROW Expression.    (157)
+
+	.  reduce 157 (src line 768)
+
+
+state 213
+	MethodDecl:  METHOD IDENTIFIER LPAREN MethodParamListOpt RPAREN COLON TypeName.BlockStmt 
+
+	LBRACE  shift 48
+	.  error
+
+	BlockStmt  goto 218
+
+state 214
+	MethodParamDecl:  IDENTIFIER COLON TypeName ASSIGN.Expression 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 219
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 215
+	InstanceDecl:  IDENTIFIER COLON IDENTIFIER ASSIGN LBRACE AssignListOpt RBRACE.    (47)
+
+	.  reduce 47 (src line 386)
+
+
+state 216
+	AssignList:  AssignList Assignment.    (51)
+
+	.  reduce 51 (src line 403)
+
+
+state 217
+	Assignment:  IDENTIFIER ASSIGN.Expression 
+
+	DISTRIBUTE  shift 70
+	LPAREN  shift 64
+	NOT  shift 57
+	MINUS  shift 58
+	IDENTIFIER  shift 60
+	INT_LITERAL  shift 65
+	FLOAT_LITERAL  shift 66
+	STRING_LITERAL  shift 67
+	BOOL_LITERAL  shift 68
+	DURATION_LITERAL  shift 69
+	.  error
+
+	Expression  goto 220
+	OrExpr  goto 50
+	AndBoolExpr  goto 51
+	CmpExpr  goto 52
+	AddExpr  goto 53
+	MulExpr  goto 54
+	UnaryExpr  goto 55
+	PrimaryExpr  goto 56
+	LiteralExpr  goto 59
+	CallExpr  goto 62
+	MemberAccessExpr  goto 61
+	DistributeExpr  goto 63
+
+state 218
+	MethodDecl:  METHOD IDENTIFIER LPAREN MethodParamListOpt RPAREN COLON TypeName BlockStmt.    (33)
+
+	.  reduce 33 (src line 314)
+
+
+state 219
+	MethodParamDecl:  IDENTIFIER COLON TypeName ASSIGN Expression.    (39)
+
+	.  reduce 39 (src line 343)
+
+
+state 220
+	Assignment:  IDENTIFIER ASSIGN Expression.    (52)
+
+	.  reduce 52 (src line 406)
+
+Rule not reduced: AnalyzeDecl:  ANALYZE IDENTIFIER ASSIGN Expression ExpectBlockOpt 
+Rule not reduced: ExpectBlockOpt:  
+Rule not reduced: ExpectBlockOpt:  ExpectBlock 
+Rule not reduced: ExpectBlock:  EXPECT LBRACE ExpectStmtOptList RBRACE 
+Rule not reduced: ExpectStmtOptList:  
+Rule not reduced: ExpectStmtOptList:  ExpectStmtList 
+Rule not reduced: ExpectStmtList:  ExpectStmt 
+Rule not reduced: ExpectStmtList:  ExpectStmtList SEMICOLON CmpExpr 
+Rule not reduced: ExpectStmt:  Expression EQ Expression 
+Rule not reduced: ExpectStmt:  Expression NEQ Expression 
+Rule not reduced: ExpectStmt:  Expression LT Expression 
+Rule not reduced: ExpectStmt:  Expression LTE Expression 
+Rule not reduced: ExpectStmt:  Expression GT Expression 
+Rule not reduced: ExpectStmt:  Expression GTE Expression 
+Rule not reduced: AssignStmt:  IDENTIFIER ASSIGN Expression 
+Rule not reduced: CommaIdentifierListOpt:  
+Rule not reduced: CommaIdentifierListOpt:  COMMA IDENTIFIER CommaIdentifierListOpt 
+Rule not reduced: DistributeStmt:  DISTRIBUTE TotalClauseOpt LBRACE DistributeCaseListOpt DefaultCaseOpt RBRACE 
+Rule not reduced: DistributeCaseListOpt:  
+Rule not reduced: DistributeCaseListOpt:  DistributeCaseListOpt DistributeCase 
+Rule not reduced: DistributeCase:  Expression ARROW BlockStmt 
+Rule not reduced: DefaultCaseOpt:  
+Rule not reduced: DefaultCaseOpt:  DefaultCase 
+Rule not reduced: DefaultCase:  DEFAULT ARROW BlockStmt 
+Rule not reduced: ArgListOpt:  
+Rule not reduced: ArgListOpt:  ArgList 
+Rule not reduced: SwitchExpr:  SWITCH Expression LBRACE RBRACE 
+Rule not reduced: CaseExpr:  CASE Expression COLON Expression 
+
+70 terminals, 76 nonterminals
+160 grammar rules, 221/16000 states
+2 shift/reduce, 0 reduce/reduce conflicts reported
+125 working sets used
+memory: parser 565/240000
+81 extra closures
+487 shift entries, 2 exceptions
+125 goto entries
+281 entries saved by goto default
+Optimizer space used: output 282/240000
+282 table entries, 0 zero
+maximum spread: 69, maximum offset: 217

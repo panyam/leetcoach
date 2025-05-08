@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -11,6 +12,7 @@ import (
 	protos "github.com/panyam/leetcoach/gen/go/leetcoach/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 const APP_ID = "leetcoach"
@@ -33,7 +35,17 @@ type ClientMgr struct {
 
 func NewClientMgr(svc_addr string) *ClientMgr {
 	log.Println("Client Mgr Svc Addr: ", svc_addr)
+	if svc_addr == "" {
+		panic("Service Address is nil")
+	}
 	return &ClientMgr{svcAddr: svc_addr}
+}
+
+func (c *ClientMgr) ClientContext(ctx context.Context, loggedInUserId string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return metadata.AppendToOutgoingContext(context.Background(), "LoggedInUserId", loggedInUserId)
 }
 
 func (c *ClientMgr) GetAuthService() *AuthService {
@@ -45,6 +57,7 @@ func (c *ClientMgr) GetAuthService() *AuthService {
 
 func (c *ClientMgr) GetDesignSvcClient() (out protos.DesignServiceClient, err error) {
 	if c.designSvcClient == nil {
+		log.Println("Addr: ", c.svcAddr)
 		designSvcConn, err := grpc.NewClient(c.svcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Printf("cannot connect with server %v", err)

@@ -4,3 +4,17 @@ watch:
 
 run:
 	go test
+
+test:
+	go test ./...
+
+bench:
+	cd core && go test -bench=Benchmark -benchmem
+
+testall: test bench
+
+prompt4sdl:
+	source ~/personal/.shhelpers && files_for_llm `find . | grep -v "\.sh" | grep -v attic | grep -v mkprompt `
+
+prompt4decl:
+	source ~/personal/.shhelpers && files_for_llm `find . | grep -v "\..parser" | grep -v "\.sh" | grep -v attic | grep -v mkprompt | grep -v dsl `

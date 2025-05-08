@@ -8,6 +8,7 @@ option go_package = "github.com/leetcoach/protos";
 package leetcoach.v1;
 
 import "leetcoach/v1/models.proto";
+import "leetcoach/v1/content.proto";
 import "google/api/annotations.proto";
 
 // Used for positioning new/moved sections
@@ -99,7 +100,7 @@ service DesignService {
   rpc UpdateSection (UpdateSectionRequest) returns (Section) {
      option (google.api.http) = {
        patch: "/v1/designs/{section.design_id}/sections/{section.id}"
-       body: "section" // Only the 'section' field goes in the body
+       body: "*" // Only the 'section' field goes in the body
      };
   }
 
@@ -120,6 +121,15 @@ service DesignService {
       delete: "/v1/designs/{design_id}/sections/{section_id}"
     };
   }
+
+  /*
+  rpc SetContent(SetContentRequest) returns (SetContentResponse) {
+    option (google.api.http) = {
+      patch: "/v1/designs/{design_id=*}/sections/{section_id=*}/content/{name=*}"
+      body: "content_bytes"
+    };
+  };
+  */
 }
 
 /**
@@ -285,6 +295,10 @@ message AddSectionRequest {
   Section section = 1;
   string relative_section_id = 2;
   PositionType position = 3;
+
+   // Optional: Initial prompt content to save if creating from suggestion/template
+   string initial_get_answer_prompt = 4;
+   string initial_verify_prompt = 5;
 }
 
 message GetSectionRequest {

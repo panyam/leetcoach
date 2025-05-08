@@ -3,7 +3,6 @@
 syntax = "proto3";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
-
 option go_package = "github.com/leetcoach/protos";
 package leetcoach.v1;
 
@@ -114,11 +113,18 @@ message Design {
   repeated string section_ids = 10;
 }
 
+enum ContentState {
+  CONTENT_STATE_UNSPECIFIED = 0;
+  CONTENT_STATE_CREATED = 1;
+  CONTENT_STATE_POPULATED = 2;
+}
+
 enum SectionType {
   SECTION_TYPE_UNSPECIFIED = 0;
   SECTION_TYPE_TEXT = 1;
   SECTION_TYPE_DRAWING = 2;
   SECTION_TYPE_PLOT = 3;
+  SECTION_TYPE_SYSTEM_DESCRIPTION = 4;
 }
 
 message Section {
@@ -146,31 +152,47 @@ message Section {
   string title = 6;
 
   /**
-   * Section content type
+   * A description of the section to help make sense of why this is here.
    */
-  string content_type = 7; // e.g., "application/json", "text/html" etc
+  string description = 7;
+
+  /**
+   * Order of the section in the list of sections.  This is a readonly field.
+   */
+  uint32 order = 8;
+
+  /**
+   * The current answer to get the answer for this section.
+   */
+  string get_answer_prompt = 9;
+
+  /**
+   * Current prompt to verify a user-given answer for his section
+   */
+  string verify_answer_prompt = 10;
+}
+
+/**
+ * Each section can have multiple pieces of content identified by a "name"
+ * The name 
+ */
+message Content {
+  google.protobuf.Timestamp created_at = 1;
+  google.protobuf.Timestamp updated_at = 2;
+
+
+  // Unique name of the content piece within the section
+  string name = 3;
+
+  /**
+   * Type of content being attached to this section.
+   * This would determine what kind of media we are working with
+   * eg e
+   */
+  string type = 5; // e.g., "application/json", "text/html" etc
 
   /**
    * Format of the section. 
    */
-  string format = 8; // e.g., "chartjs/json", "plotly/json"
-
-  // Note section content may not always be served here.
-  oneof content {
-    TextSectionContent text_content = 9;
-    DrawingSectionContent drawing_content = 10;
-    PlotSectionContent plot_content = 11;
-  }
-}
-
-message TextSectionContent {
-  string html_content = 1;
-}
-
-message PlotSectionContent {
-  bytes data = 2;    // The plot configuration or data as bytes (likely JSON string bytes)
-}
-
-message DrawingSectionContent {
-  bytes data = 2;    // The actual drawing data (can be JSON string bytes, raw SVG bytes, etc.)
+  string format = 6; // e.g., "chartjs/json", "plotly/json"
 }

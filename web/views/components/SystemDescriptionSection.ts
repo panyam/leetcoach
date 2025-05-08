@@ -11,14 +11,44 @@ export class SystemDescriptionSection extends BaseSection {
 
     private dslContent: SystemDescriptionContent = ''; // Store the DSL string
     private textAreaElement: HTMLTextAreaElement | null = null; // <-- Reference to textarea
-    private validateButton: HTMLButtonElement | null = null; // <-- Reference to validate button
-
 
     constructor(data: SectionData, element: HTMLElement, callbacks: SectionCallbacks = {}) {
         super(data, element, callbacks);
         // No special initialization needed here for Phase 1
-        this.validateButton = this._findElement<HTMLButtonElement>('.section-validate-dsl', false);
-        this.validateButton?.classList.remove('hidden'); // Make validate button visible
+        this._bindViewModeActions();
+    }
+
+    // Override _bindEvents to ensure edit mode validation button is also captured if needed
+    protected override _bindEvents(): void {
+        super._bindEvents(); // Call base class binding
+
+        // Add specific handler for validate in edit mode if base delegation isn't enough
+        this.element.addEventListener('click', (event: MouseEvent) => {
+             const target = event.target as HTMLElement;
+             const validateButtonEdit = target.closest('.section-edit-form .section-validate-dsl');
+             if (this.mode === 'edit' && validateButtonEdit) {
+                 console.log("Validate button clicked in EDIT mode");
+                 this.handleValidateClick(validateButtonEdit as HTMLButtonElement); // Pass button for loading state
+             }
+        });
+        // Note: BaseSection's delegation might already cover this if buttons have same class
+    }
+
+
+    // Bind actions specific to view mode action bar
+    private _bindViewModeActions(): void {
+        this.element.addEventListener('click', (event: MouseEvent) => {
+            if (this.mode !== 'view') return; // Only act in view mode
+
+            const target = event.target as HTMLElement;
+            const validateButton = target.closest('.view-actions .section-validate-dsl');
+            // Add listeners for generate/analyze buttons here when implemented
+
+            if (validateButton) {
+                 console.log("Validate button clicked in VIEW mode");
+                 this.handleValidateClick(validateButton as HTMLButtonElement);
+            }
+        });
     }
 
     protected getSectionTypeTitle(): string {
@@ -43,6 +73,8 @@ export class SystemDescriptionSection extends BaseSection {
             console.warn(`View code block area not found for system_description section ${this.data.id}`);
             if(viewContent) viewContent.innerHTML = `<p class="text-gray-400 italic">Error: View structure incorrect.</p>`;
         }
+        // Re-bind view mode actions AFTER populating view content ensures buttons exist
+        this._bindViewModeActions();
     }
 
     protected populateEditContent(): void {
@@ -52,9 +84,9 @@ export class SystemDescriptionSection extends BaseSection {
              this.textAreaElement.focus();
              console.log(`Textarea initialized for section ${this.data.id}`);
         } else {
-             console.error(`Edit content textarea not found for system_description section ${this.data.id}`);
-             // Maybe render an error message in the content container
-             this.contentContainer!.innerHTML = `<p class="text-red-500 p-4">Error: Textarea editor target not found.</p>`;
+            console.error(`Edit content textarea not found for system_description section ${this.data.id}`);
+            const editContainer = this._findElement('.section-edit-form');
+            if(editContainer) editContainer.innerHTML = `<p class="text-red-500 p-4">Error: Textarea element missing.</p>`;
         }
     }
 
@@ -90,34 +122,33 @@ export class SystemDescriptionSection extends BaseSection {
 
     public async handleSaveClick(): Promise<void> {
         if (this.mode !== 'edit') return; // Only save if in edit mode
-
         const currentContent = this.getContentFromEditMode();
         console.log(`Saving System Description section ${this.data.id}.`);
-        this.isLoading = true; // Indicate loading state (optional)
+        this.isLoading = true;
+        const saveButton = this._findElement<HTMLButtonElement>('.section-edit-save');
+        this.showLoadingOnButton(saveButton, true, 'Saving...');
 
         try {
-            // Base64 encode the DSL string before sending
             const encodedContent = btoa(unescape(encodeURIComponent(currentContent)));
 
             await ContentApi.contentServiceSetContent({
                 designId: this.designId,
                 sectionId: this.sectionId,
                 name: "main", // Or "dsl"
-                contentBytes: encodedContent, // Send encoded bytes
+                contentBytes: encodedContent,
             });
 
-            // Update internal state *after* successful save
             this.dslContent = currentContent;
-            // this.updateLastSavedTimestamp(); // Method from BaseSection assumed
+            // this.updateLastSavedTimestamp(); // Assume BaseSection handles this maybe?
             this.toastManager.showToast("Saved", "System Model saved successfully.", "success", 1500);
-            this.switchToViewMode(false); // Switch to view mode without re-saving
+            this.switchToViewMode(false);
 
         } catch (error: any) {
             console.error(`Error saving System Description section ${this.data.id}:`, error);
             this.toastManager.showToast("Save Error", `Failed to save: ${error.message || 'Server error'}`, "error");
-            // Remain in edit mode on error
         } finally {
             this.isLoading = false;
+            this.showLoadingOnButton(saveButton, false);
         }
     }
 
@@ -125,69 +156,6 @@ export class SystemDescriptionSection extends BaseSection {
     protected override cleanupEditMode(): void {
         this.textAreaElement = null; // Clear reference
         console.log(`Cleaned up edit mode for textarea section ${this.data.id}`);
-    }
-
-    // Bind the validate button click listener
-    protected override _bindEvents(): void {
-        super._bindEvents(); // Call base class binding
-
-        // Add specific listener for the validate button
-        if (this.validateButton) {
-            this.validateButton.removeEventListener('click', this.handleValidateClick); // Prevent duplicates
-            this.validateButton.addEventListener('click', this.handleValidateClick.bind(this));
-        }
-    }
-
-
-    // --- Validation Logic ---
-    private async handleValidateClick(event: MouseEvent): Promise<void> {
-        event.stopPropagation(); // Prevent triggering other section clicks
-        if (!this.validateButton) return;
-
-        console.log(`Validate button clicked for section ${this.sectionId}`);
-        const originalButtonText = this.validateButton.innerHTML; // Store original icon/text
-        this.setLoadingOnButton(this.validateButton, true); // Show loading state
-
-        try {
-            const response = await SystemModelApi.systemModelServiceValidateDSL({
-                designId: this.designId,
-                sectionId: this.sectionId,
-                // Body is empty for this POST request as defined in proto annotation
-                body: {},
-            });
-
-            if (response.isValid) {
-                this.toastManager.showToast("Validation Successful", "DSL syntax is valid.", "success", 2000);
-            } else {
-                // Format errors for toast message
-                const errorMessages = response.errors?.map((err: any) =>
-                     `L${err.line ?? '?'}:C${err.column ?? '?'} - ${err.message}` // Handle potential null line/col
-                 ) || ["Unknown validation error."];
-                const fullMessage = `Validation Failed:\n - ${errorMessages.join('\n - ')}`;
-                 // Show multi-line error toast (ToastManager might need adjustment for this)
-                this.toastManager.showToast("Validation Failed", fullMessage, "error", 8000); // Longer duration for errors
-                console.warn("Validation Errors:", response.errors);
-            }
-
-        } catch (error: any) {
-            console.error(`Error calling validation API for section ${this.sectionId}:`, error);
-            const errorMsg = error.message || (error.response ? await error.response.text() : 'Unknown API error');
-            this.toastManager.showToast("Validation Error", `Failed to validate: ${errorMsg}`, "error");
-        } finally {
-            this.setLoadingOnButton(this.validateButton, false, originalButtonText); // Restore button
-        }
-    }
-
-    // Helper to show/hide loading state on a button
-    private setLoadingOnButton(button: HTMLButtonElement | null, isLoading: boolean, defaultContent: string = ''): void {
-        if (!button) return;
-        if (isLoading) {
-            button.disabled = true;
-            button.innerHTML = `<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"> <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle> <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path> </svg>`; // Spinner SVG
-        } else {
-            button.disabled = false;
-            button.innerHTML = defaultContent; // Restore original content (icon)
-        }
     }
 
     // Implement abstract methods from BaseSection
@@ -207,4 +175,59 @@ export class SystemDescriptionSection extends BaseSection {
      public override handleThemeChange(): void {
          console.log(`SystemDescriptionSection ${this.data.id}: Handling theme change.`);
      }
+
+    // --- Validation Logic ---
+    private async handleValidateClick(buttonElement: HTMLButtonElement | null): Promise<void> {
+        console.log(`Validate DSL clicked for section ${this.sectionId}`);
+        if (this.isLoading) return; // Prevent concurrent validation
+
+        this.isLoading = true;
+        this.showLoadingOnButton(buttonElement, true);
+
+        try {
+            const response = await SystemModelApi.systemModelServiceValidateDSL({
+                designId: this.designId,
+                sectionId: this.sectionId,
+                body: {} // Body might be needed depending on gateway generation
+            });
+
+            if (response.isValid) {
+                this.toastManager.showToast("Validation Success", "DSL syntax is valid.", "success", 2000);
+            } else {
+                const errorMessages = response.errors?.map(err =>
+                    `L${err.line}:C${err.column}: ${err.message}`
+                ) || ["Unknown validation error."];
+                // Show first few errors in toast, maybe log all to console
+                const toastMessage = errorMessages.slice(0, 3).join('\n');
+                this.toastManager.showToast("Validation Failed", toastMessage, "error", 5000);
+                console.error("DSL Validation Errors:", response.errors);
+            }
+
+        } catch (error: any) {
+            console.error(`Error validating DSL for section ${this.sectionId}:`, error);
+            const errorMsg = error.message || (error.response ? await error.response.text() : 'Server error');
+            this.toastManager.showToast("Validation Error", `Failed: ${errorMsg}`, "error");
+        } finally {
+            this.isLoading = false;
+            this.showLoadingOnButton(buttonElement, false);
+        }
+    }
+
+    // Helper to show/hide loading state on a button
+    private showLoadingOnButton(button: HTMLButtonElement | null, isLoading: boolean, loadingText: string = "Processing...") {
+         if (!button) return;
+         const originalContent = button.dataset.originalContent || button.innerHTML; // Store original content if not already stored
+         if (!button.dataset.originalContent) {
+             button.dataset.originalContent = originalContent;
+         }
+
+         if (isLoading) {
+             button.disabled = true;
+             button.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"> <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle> <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path> </svg> ${loadingText}`;
+         } else {
+             button.disabled = false;
+             button.innerHTML = originalContent; // Restore original content
+         }
+     }
+
 }

@@ -1779,6 +1779,10 @@ select {
   cursor: pointer;
 }
 
+.resize-y {
+  resize: vertical;
+}
+
 .resize {
   resize: both;
 }
@@ -2736,6 +2740,10 @@ select {
   --tw-ring-offset-width: 2px;
 }
 
+.disabled\:opacity-50:disabled {
+  opacity: 0.5;
+}
+
 .group:hover .group-hover\:text-blue-600 {
   --tw-text-opacity: 1;
   color: rgb(37 99 235 / var(--tw-text-opacity, 1));
@@ -2874,6 +2882,11 @@ select {
 
 .dark\:hover\:bg-blue-900\/50:hover:is(.dark *) {
   background-color: rgb(30 58 138 / 0.5);
+}
+
+.dark\:hover\:bg-gray-500:hover:is(.dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(107 114 128 / var(--tw-bg-opacity, 1));
 }
 
 .dark\:hover\:bg-gray-600:hover:is(.dark *) {

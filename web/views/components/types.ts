@@ -90,3 +90,43 @@ export interface LeetCoachDocument {
   title: string;
   sections: DocumentSection[];
 }
+
+/** Basic interface for any component managing a view/edit mode within a section */
+export interface ISectionModeComponent {
+    /** The root DOM element managed by this specific mode component. */
+    element: HTMLElement;
+    /** Cleans up resources like event listeners, editor instances, etc. */
+    destroy(): void;
+}
+
+/** Interface for components displaying section content in view mode. */
+export interface ISectionViewComponent extends ISectionModeComponent {
+    // Typically, view components might not need many methods beyond destroy.
+    // Data is usually passed during instantiation or via an update method if needed later.
+    // updateContent?(newContent: SectionContent): void; // Optional update method if needed
+}
+
+/** Interface for components handling the editing of section content. */
+export interface ISectionEditComponent extends ISectionModeComponent {
+    /** Optional: Method to retrieve the current, potentially unsaved, content from the editor/form. */
+    getContent?(): SectionContent;
+    /** Optional: Method to programmatically focus the primary editing element. */
+    focus?(): void;
+}
+
+// --- NEW: Callback types for Edit Components ---
+
+/**
+ * Callback invoked when the user initiates a save action within an Edit component.
+ * The component should pass its current content.
+ * The container handles the persistence and decides whether to switch modes.
+ * The Promise indicates async operation (like API call).
+ */
+export type SaveSuccessCallback = () => Promise<void>;
+
+/**
+ * Callback invoked when the user initiates a cancel action within an Edit component.
+ * The container typically handles switching back to view mode without saving.
+ */
+export type CancelCallback = () => void;
+

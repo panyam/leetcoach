@@ -153,6 +153,7 @@ class DesignEditorPage {
             const sectionInstances: BaseSection[] = this.sectionManager.initializeSections(sectionsMetadata);
 
             // Step 4: Trigger Content Loading for Each Section Instance
+            /*
             if (sectionInstances.length > 0) {
                 console.log(`DesignEditorPage: Triggering loadContent() for ${sectionInstances.length} sections...`);
                 const loadPromises = sectionInstances.map(instance =>
@@ -175,6 +176,7 @@ class DesignEditorPage {
             } else {
                  console.log("DesignEditorPage: No sections found to load content for.");
             }
+           */
 
             // Step 5: Update empty state *after* initialization and load attempts
             this.sectionManager.handleEmptyState(); // Reflects loaded sections (or lack thereof)

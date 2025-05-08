@@ -2,10 +2,10 @@
 
 import { Modal } from './Modal';
 import { BaseSection } from './BaseSection';
-import { TextSection } from './TextSection';
-import { DrawingSection } from './DrawingSection';
-import { PlotSection } from './PlotSection';
-import { SystemDescriptionSection } from './SystemDescriptionSection';
+// import { TextSection } from './TextSection';
+// import { DrawingSection } from './DrawingSection';
+// import { PlotSection } from './PlotSection';
+// import { SystemDescriptionSection } from './SystemDescriptionSection';
 import { SectionContent, DocumentSection, SectionType, TextContent, DrawingContent, PlotContent, SectionData, SectionCallbacks } from './types';
 import { TocItemInfo, TableOfContents } from './TableOfContents';
 import { V1Section, V1PositionType, V1SuggestedSection } from './apiclient'; // Import V1Section and V1PositionType, LlmApi, V1SuggestedSection
@@ -306,7 +306,7 @@ export class SectionManager {
                 // This bypasses the loadContent fetch for the newly created section,
                 // using the content we just received from the API.
                 console.log(`Calling setInitialContentAndRender for new section ${newSectionInstance.sectionId}`);
-                newSectionInstance.setInitialContentAndRender();
+                // newSectionInstance.setInitialContentAndRender();
                 // --- End new method call ---
 
                 // Scroll the new section into view smoothly
@@ -443,18 +443,20 @@ export class SectionManager {
             onAddSectionRequest: this.openSectionTypeSelector.bind(this)
         };
 
-        // Create instance with the provided data (content might be missing initially)
-        // The BaseSection constructor now handles the initial loading state display.
-        switch (type) {
-            case 'text':    sectionInstance = new TextSection(sectionData, sectionEl, callbacks); break;
-            case 'drawing': sectionInstance = new DrawingSection(sectionData, sectionEl, callbacks); break;
-            case 'plot':    sectionInstance = new PlotSection(sectionData, sectionEl, callbacks); break;
-            case 'system_description': sectionInstance = new SystemDescriptionSection(sectionData, sectionEl, callbacks); break;
-            default:
-                console.warn(`Unhandled section type "${type}" during creation. Defaulting to Text.`);
-                sectionData.type = 'text'; // Correct the data type if defaulting
-                sectionInstance = new TextSection(sectionData, sectionEl, callbacks);
+        // Instantiate the CONTAINER (BaseSection) for all types.
+        // The BaseSection constructor will handle fetching initial content
+        // and rendering the correct initial VIEW mode component based on sectionData.type.
+        try {
+            // Pass the initial metadata. BaseSection's constructor
+            // should trigger the initial content load.
+            sectionInstance = new BaseSection(sectionData, sectionEl, callbacks);
+            (sectionEl as any).componentInstance = sectionInstance; // Store container instance
+        } catch (error) {
+            console.error(`Failed to instantiate BaseSection container for ${sectionData.id}:`, error);
+            sectionEl.remove(); // Clean up element if instantiation fails
+            return null;
         }
+        // --- END MODIFIED INSTANTIATION ---
 
         // Add instance to the element for easy access (e.g., retry button)
         (sectionEl as any).componentInstance = sectionInstance;

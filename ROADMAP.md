@@ -26,8 +26,8 @@
 3.  **Frontend: Basic Modal Wiring:**
     *   **Task:** Make the LLM button in `Section.html` open the existing `llm-dialog` modal and trigger a *very basic* API call. Display the raw response.
     *   **Details:**
-        *   Modify `BaseSection.ts` (`openLlmDialog`): Ensure it correctly opens the `llm-dialog` modal.
-        *   Add a basic `handleSubmit` function (initially tied to the modal's "Submit" button) in `BaseSection.ts` or a new `LlmDialog.ts` component.
+        *   Modify `SectionContainer.ts` (`openLlmDialog`): Ensure it correctly opens the `llm-dialog` modal.
+        *   Add a basic `handleSubmit` function (initially tied to the modal's "Submit" button) in `SectionContainer.ts` or a new `LlmDialog.ts` component.
         *   This handler should:
             *   Get the current section ID and design ID.
             *   Construct a *hardcoded* basic prompt (e.g., "Explain system design").
@@ -35,7 +35,7 @@
             *   On success, show the `llm-results` modal (`Modal.ts`) and display the raw `response_text` inside `#llm-results-content`.
             *   Handle API errors (show Toast).
     *   **Difficulty:** Medium (Frontend API call, modal interaction logic).
-    *   **Files:** `web/views/templates/Section.html`, `web/views/components/BaseSection.ts`, `web/views/components/Modal.ts`, `web/views/components/Api.ts` (add `LlmApi`), `web/views/templates/LlmDialog.html`, `web/views/templates/LlmResults.html`.
+    *   **Files:** `web/views/templates/Section.html`, `web/views/components/SectionContainer.ts`, `web/views/components/Modal.ts`, `web/views/components/Api.ts` (add `LlmApi`), `web/views/templates/LlmDialog.html`, `web/views/templates/LlmResults.html`.
 
 **Phase 2: Content Generation & Review (Text Sections)**
 
@@ -54,7 +54,7 @@
     *   **Task:** Update the `llm-dialog` modal and associated TS logic to handle "Generate" and "Review" actions specifically for text sections.
     *   **Details:**
         *   Modify `LlmDialog.html` tab switching logic (can be basic JS for now).
-        *   In `BaseSection.ts` or a dedicated `LlmDialogHandler.ts`:
+        *   In `SectionContainer.ts` or a dedicated `LlmDialogHandler.ts`:
             *   When the modal opens for a *text* section:
                 *   Show appropriate pre-defined prompts based on the section title (e.g., in the "Generate" tab).
                 *   Enable the "Review" tab.
@@ -63,7 +63,7 @@
             *   Display results in the `llm-results` modal.
             *   Add an "Apply" button to `llm-results` modal: If the user clicks Apply after *generating* content, update the `TextSection`'s editor content (if in edit mode) or saved content (`ContentService.SetContent`) and switch to view mode.
     *   **Difficulty:** Medium-High (UI logic, state management in modal, interacting with `TextSection`, `ContentService` API).
-    *   **Files:** `web/views/templates/LlmDialog.html`, `web/views/templates/LlmResults.html`, `web/views/components/BaseSection.ts` (or new `LlmDialogHandler.ts`), `web/views/components/TextSection.ts`, `web/views/components/Modal.ts`, `web/views/components/Api.ts`.
+    *   **Files:** `web/views/templates/LlmDialog.html`, `web/views/templates/LlmResults.html`, `web/views/components/SectionContainer.ts` (or new `LlmDialogHandler.ts`), `web/views/components/TextSection.ts`, `web/views/components/Modal.ts`, `web/views/components/Api.ts`.
 
 **Phase 3: Contextual Awareness & Drawing Support**
 
@@ -83,7 +83,7 @@
         *   Backend implementation fetches content (`ContentService`) and calls LLM with appropriate prompt ("Generate interview questions about the following text: ...").
         *   Frontend: Add a "Questions" tab/option in `llm-dialog`. Call the new RPC and display results in `llm-results`.
     *   **Difficulty:** Medium (Builds on existing patterns).
-    *   **Files:** `proto/leetcoach/v1/llm_service.proto`, `services/llm_service.go`, `web/views/templates/LlmDialog.html`, `web/views/templates/LlmResults.html`, `web/views/components/BaseSection.ts` (or handler), `web/views/components/Api.ts`.
+    *   **Files:** `proto/leetcoach/v1/llm_service.proto`, `services/llm_service.go`, `web/views/templates/LlmDialog.html`, `web/views/templates/LlmResults.html`, `web/views/components/SectionContainer.ts` (or handler), `web/views/components/Api.ts`.
 
 8.  **Frontend & Backend: Review Drawing (via Text Description):**
     *   **Task:** Allow users to describe their drawing and get LLM feedback.
@@ -93,7 +93,7 @@
         *   Backend calls LLM with a prompt tailored to reviewing architecture descriptions.
         *   Display feedback in `llm-results`.
     *   **Difficulty:** Medium (Mainly UI change, backend logic is similar to text review).
-    *   **Files:** `web/views/templates/LlmDialog.html`, `web/views/components/BaseSection.ts` (or handler), `proto/leetcoach/v1/llm_service.proto`, `services/llm_service.go`.
+    *   **Files:** `web/views/templates/LlmDialog.html`, `web/views/components/SectionContainer.ts` (or handler), `proto/leetcoach/v1/llm_service.proto`, `services/llm_service.go`.
 
 **Phase 4: Advanced Features & Refinements**
 

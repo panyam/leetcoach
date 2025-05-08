@@ -8,7 +8,7 @@ This document outlines outstanding tasks, refactoring work, and future feature i
     *   Create `PlotSectionView.ts` and `PlotSectionEdit.ts`.
     *   Move view logic (placeholder rendering for now) to `PlotSectionView`. Fetch data internally.
     *   Move edit logic (JSON textarea) to `PlotSectionEdit`. Implement internal save/load via `ContentApi`. Handle `onSaveSuccess`/`onCancel`.
-    *   Update `BaseSection.ts` (`renderModeComponent`) to instantiate the new Plot components.
+    *   Update `SectionContainer.ts` (`renderModeComponent`) to instantiate the new Plot components.
     *   Delete old `PlotSection.ts` and placeholder files.
     *   **Verify:** Ensure Plot sections work correctly with the new pattern alongside other refactored sections.
 

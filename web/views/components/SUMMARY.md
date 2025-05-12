@@ -16,12 +16,12 @@ This folder contains the core client-side TypeScript logic responsible for makin
     *   Provides `onSaveSuccess` and `onCancel` callbacks to Edit components.
     *   Handles universal button clicks and generic click-to-edit logic (for applicable types).
 *   **View Mode Components:**
-    *   `TextSectionView.ts`: Fetches HTML content, renders it.
+    *   `TextSectionView.ts`: Fetches Markdown content, renders it using ToastUI renderer.
     *   `DrawingSectionView.ts`: Fetches SVG previews, renders the appropriate one based on theme.
     *   `SystemDescriptionView.ts`: Fetches DSL content, displays it in a `<pre><code>` block, contains section-specific action buttons (Validate, Generate Diagram), handles API calls for these actions, displays diagram/results placeholders.
     *   `PlotSectionView.ts`: (To be refactored).
 *   **Edit Mode Components:**
-    *   `TextSectionEdit.ts`: Loads template, fetches initial content, initializes TinyMCE, handles editor content changes, binds Save/Cancel buttons, calls `ContentApi.setContent` on save, signals container via `onSaveSuccess`/`onCancel`.
+    *   `TextSectionEdit.ts`: Loads template, fetches initial markdown content, initializes ToastUI, handles editor content changes, binds Save/Cancel buttons, calls `ContentApi.setContent` on save, signals container via `onSaveSuccess`/`onCancel`.
     *   `DrawingSectionEdit.ts`: Loads template, fetches initial JSON, initializes Excalidraw (via `ExcalidrawWrapper.tsx`), captures changes, handles Save (generates SVGs, calls `ContentApi` multiple times), signals container. Uses React/ReactDOM for Excalidraw.
     *   `SystemDescriptionEdit.ts`: Loads template, fetches initial DSL, uses a `<textarea>` (Monaco deferred), handles Save (calls `ContentApi`), handles Cancel, handles Validate button (calls `SystemModelApi`).
     *   `PlotSectionEdit.ts`: (To be refactored).

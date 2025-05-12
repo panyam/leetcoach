@@ -114,7 +114,7 @@ export class TextSectionEdit implements ISectionEditComponent {
         } catch (error: any) {
             console.error(`Error loading initial content for TextSectionEdit ${this.sectionId}:`, error);
             this.isLoading = false;
-            if (error.status === 404) {
+            if (error.response.status === 404) {
                  // Content doesn't exist (new section), initialize editor with empty
                  this.initialContent = '';
                  this.initializeEditor(this.editorTargetElement);

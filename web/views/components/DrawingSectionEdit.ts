@@ -157,6 +157,13 @@ export class DrawingSectionEdit implements ISectionEditComponent {
 
     private handleExcalidrawChange(elements: ReadonlyArray<any>, appState: any /* AppState */, files: any /* BinaryFiles */): void {
         // Update internal state immediately on change
+    console.log("Excalidraw onChange: Elements count:", elements.length);
+    const textElement = elements.find(el => el.type === 'text' && el.containerId);
+    if (textElement) {
+        console.log("Text Element:", textElement.id, "Text:", textElement.text, "Container ID:", textElement.containerId);
+        const containerShape = elements.find(el => el.id === textElement.containerId);
+        console.log("Container Shape:", containerShape?.id, "Type:", containerShape?.type);
+    }
         this.currentContent = { format: 'excalidraw/json', data: { elements, appState } };
         // console.log(`Excalidraw changed. Elements: ${elements.length}`);
         // Debounced auto-save could be triggered here if desired
@@ -181,6 +188,8 @@ export class DrawingSectionEdit implements ISectionEditComponent {
         this.isSaving = true;
         this.setControlLoading(true);
         this.toastManager.showToast("Saving...", "Saving drawing and generating previews...", "info");
+
+        console.log("triggerSave: currentContent before saving:", JSON.stringify(this.currentContent, null, 2));
 
         const contentToSave = this.currentContent;
         const sceneData = contentToSave.data as ExcalidrawSceneData;

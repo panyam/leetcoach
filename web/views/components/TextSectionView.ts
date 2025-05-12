@@ -40,7 +40,7 @@ export class TextSectionView implements ISectionViewComponent {
         } catch (error: any) {
              console.error(`Error loading content for TextSectionView ${this.sectionId}:`, error);
              this.isLoading = false;
-             if (error.status === 404) {
+             if (error.response.status === 404) {
                  // Content doesn't exist (new section), render placeholder
                  this.content = '';
                  this.renderContent();

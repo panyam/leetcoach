@@ -130,7 +130,7 @@ export class DrawingSectionEdit implements ISectionEditComponent {
 
         this.reactRoot = ReactDOM.createRoot(targetElement);
         const sceneData = (this.initialContent?.data || { elements: [], appState: {} }) as ExcalidrawSceneData;
-        const initialElements = convertToExcalidrawElements([...(sceneData?.elements || [])]); // Use spread to ensure mutable array if needed
+        const initialElements = sceneData?.elements || [] // convertToExcalidrawElements([...(sceneData?.elements || [])]); // Use spread to ensure mutable array if needed
         let initialAppState = sceneData?.appState || {};
         initialAppState = { ...initialAppState, collaborators: [] }; // Ensure collaborators is empty array
 

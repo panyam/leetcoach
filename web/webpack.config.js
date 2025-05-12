@@ -56,6 +56,13 @@ module.exports = (_env, options) => {
           exclude: path.resolve(context, "node_modules/"),
           use: ["babel-loader"],
         },
+        { // --- NEW RULE FOR CSS ---
+          test: /\.css$/i,
+          use: [
+            MiniCssExtractPlugin.loader, // 2. Extracts CSS into separate files
+            "css-loader",                // 1. Translates CSS into CommonJS modules
+          ],
+        },
         /*
         {
           test: /\.tsx$/,
@@ -136,36 +143,7 @@ module.exports = (_env, options) => {
       ),
 
       // --- Copy TinyMCE Assets ---
-      new CopyPlugin({
-          patterns: [
-              // Ensure paths are correct: Copy FROM node_modules TO the output directory
-              {
-                  from: path.resolve(context, 'node_modules/tinymce/skins'),
-                  to: path.resolve(OUTPUT_DIR, 'skins'), // -> ./static/js/gen/skins
-                  globOptions: { ignore: ['**/.*'] } // Ignore hidden files like .DS_Store
-              },
-              {
-                  from: path.resolve(context, 'node_modules/tinymce/plugins'),
-                  to: path.resolve(OUTPUT_DIR, 'plugins'), // -> ./static/js/gen/plugins
-                  globOptions: { ignore: ['**/.*'] }
-              },
-              {
-                  from: path.resolve(context, 'node_modules/tinymce/themes'),
-                  to: path.resolve(OUTPUT_DIR, 'themes'), // -> ./static/js/gen/themes
-                  globOptions: { ignore: ['**/.*'] }
-              },
-              {
-                  from: path.resolve(context, 'node_modules/tinymce/icons'),
-                  to: path.resolve(OUTPUT_DIR, 'icons'), // -> ./static/js/gen/icons
-                  globOptions: { ignore: ['**/.*'] }
-              },
-              {
-                  from: path.resolve(context, 'node_modules/tinymce/models'),
-                  to: path.resolve(OUTPUT_DIR, 'models'), // -> ./static/js/gen/models
-                  globOptions: { ignore: ['**/.*'] }
-              },
-          ],
-      }),
+      // copyTinyMCEAssets
     ],
     optimization: {
       splitChunks: {

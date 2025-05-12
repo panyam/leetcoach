@@ -493,35 +493,30 @@
       title="Click to edit"
     >
       <!-- Actual text content will be injected here by TextSection.ts -->
-      <p class="text-gray-400 italic">View Mode: Text content appears here.</p>
+      <div
+        id="toast-viewer-container"
+        class="w-full h-full prose dark:prose-invert max-w-none p-1"
+      ></div>
     </div>
   </div>
 
   <div data-template-id="text-section-edit">
     <!-- Root element takes full space and arranges children vertically -->
     <div class="w-full h-full flex flex-col section-edit-form">
-      <!-- Tinymce editor target -->
+      <!-- Container for Toast UI Editor -->
       <div
-        class="text-editor-target flex-grow min-h-[200px]"
-        aria-label="Section text content"
+        id="toast-editor-container"
+        class="flex-grow min-h-[300px] border border-gray-300 dark:border-gray-600 rounded-t-md"
       >
-        <!-- TinyMCE will initialize here, replacing this comment -->
-        <!-- Keep min-h for initial sizing before editor loads -->
+        <!-- Toast UI Editor will be initialized here -->
       </div>
-      <!-- Edit controls fixed at the bottom -->
-      <div class="edit-controls mt-2 text-right space-x-2 flex-shrink-0">
-        <button
-          type="button"
-          class="section-edit-cancel px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          class="section-edit-save px-3 py-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Save
-        </button>
+
+      <!-- Edit controls (remain the same) -->
+      <div
+        class="edit-controls p-2 text-right space-x-2 border-t border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-b-md flex-shrink-0"
+      >
+        <button type="button" class="section-edit-cancel ...">Cancel</button>
+        <button type="button" class="section-edit-save ...">Save</button>
       </div>
     </div>
   </div>

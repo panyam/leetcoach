@@ -22,16 +22,15 @@
   "dependencies": {
     "@excalidraw/excalidraw": "^0.17.6",
     "@panyam/tsutils": "*",
+    "@toast-ui/editor": "^3.2.2",
+    "@toast-ui/editor-plugin-code-syntax-highlight": "^3.1.0",
     "axios": "*",
     "galore": "*",
     "golden-layout": "^2.6.0",
-    "markdown-it": "*",
-    "monaco-editor": "^0.52.2",
     "prismjs": "^1.30.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "split.js": "^1.6.5",
-    "tinymce": "^7.8.0"
+    "split.js": "^1.6.5"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.10",

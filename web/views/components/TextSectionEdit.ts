@@ -1,52 +1,34 @@
 
-// FILE: web/views/components/TextSectionEdit.ts
-
 import { SectionContent, ISectionEditComponent, SaveSuccessCallback, CancelCallback, TextContent } from './types';
-import { TemplateLoader } from './TemplateLoader'; // To load the edit template HTML
-import { ContentApi } from './Api'; // Import API
-import { ToastManager } from './ToastManager'; // For feedback
+import { TemplateLoader } from './TemplateLoader';
+import { ContentApi } from './Api';
+import { ToastManager } from './ToastManager';
 
-// Import TinyMCE types and core
-import tinymce, { Editor } from 'tinymce/tinymce';
-// Import necessary TinyMCE modules (theme, icons, plugins) - ensure these are imported somewhere globally or managed by your build process
-import 'tinymce/themes/silver/theme';
-import 'tinymce/icons/default/icons';
-import 'tinymce/models/dom/model';
-import 'tinymce/plugins/autolink';
-import 'tinymce/plugins/lists';
-import 'tinymce/plugins/link';
-import 'tinymce/plugins/image';
-import 'tinymce/plugins/charmap';
-import 'tinymce/plugins/preview';
-import 'tinymce/plugins/anchor';
-import 'tinymce/plugins/searchreplace';
-import 'tinymce/plugins/visualblocks';
-import 'tinymce/plugins/code';
-import 'tinymce/plugins/fullscreen';
-import 'tinymce/plugins/insertdatetime';
-import 'tinymce/plugins/media';
-import 'tinymce/plugins/table';
-import 'tinymce/plugins/help';
-import 'tinymce/plugins/wordcount';
-import 'tinymce/plugins/autoresize';
-
+import Editor from '@toast-ui/editor';
+import '@toast-ui/editor/dist/toastui-editor.css'; // Import CSS
+import codeSyntaxHighlight from '@toast-ui/editor-plugin-code-syntax-highlight';
+import 'prismjs/themes/prism.css'; // Prism CSS for the plugin
+import Prism from 'prismjs'; // Import Prism to make it available for the plugin
 
 export class TextSectionEdit implements ISectionEditComponent {
+    public element: HTMLElement;
+    private designId: string;
+    private sectionId: string;
     private onSaveSuccess: SaveSuccessCallback;
     private onCancel: CancelCallback;
-    private editorInstance: Editor | null = null;
+
     private templateLoader = new TemplateLoader();
     private toastManager: ToastManager;
+
+    private editorInstance: any | null = null; // Instance of Toast UI Editor
+    private editorContainerElement: HTMLDivElement | null = null; // Div where editor will be mounted
+
+    private initialContent: TextContent = ''; // Stores raw Markdown
+    private isLoading: boolean = true;
+    private isSaving: boolean = false;
+
     private saveButton: HTMLButtonElement | null = null;
     private cancelButton: HTMLButtonElement | null = null;
-
-    private initialContent: TextContent = ''; // Store initially loaded content
-    private isLoading: boolean = true; // For initial data load
-    private isSaving: boolean = false; // For save operation
-
-    // DOM Elements within the template
-    private editorTargetElement: HTMLElement | null = null;
-
 
     /**
      * Creates an instance of TextSectionEdit.
@@ -55,9 +37,9 @@ export class TextSectionEdit implements ISectionEditComponent {
      * @param callbacks Object containing onSave and onCancel callbacks.
      */
     constructor(
-        public element: HTMLElement,
-        public designId: string,
-        public sectionId: string,
+        element: HTMLElement,
+        designId: string,
+        sectionId: string,
         callbacks: { onSaveSuccess: SaveSuccessCallback, onCancel: CancelCallback }
     ) {
         this.element = element;
@@ -67,16 +49,15 @@ export class TextSectionEdit implements ISectionEditComponent {
         this.onCancel = callbacks.onCancel;
         this.toastManager = ToastManager.getInstance();
 
-        console.log(`TextSectionEdit created for ${designId}/${sectionId}`);
-        this.loadTemplateAndData(); // Load template and fetch initial data
+        this.loadTemplateAndData();
     }
 
     /** Loads template HTML, fetches initial data, then initializes editor */
     private async loadTemplateAndData(): Promise<void> {
         this.isLoading = true;
-        this.element.innerHTML = `<div class="p-4 text-center text-gray-500 dark:text-gray-400 italic">Loading editor...</div>`; // Initial loading message
+        this.element.innerHTML = `<div class="p-4 text-center text-gray-500 dark:text-gray-400 italic">Loading editor...</div>`;
 
-        // 1. Load Template Structure
+        // 1. Load Template - this template now just needs a single div for the editor to mount
         const success = this.templateLoader.loadInto('text-section-edit', this.element);
         if (!success) {
             console.error("Failed to load text-section-edit template.");
@@ -84,13 +65,12 @@ export class TextSectionEdit implements ISectionEditComponent {
             this.isLoading = false;
             return;
         }
-        this.editorTargetElement = this.element.querySelector<HTMLElement>('.text-editor-target');
+        this.editorContainerElement = this.element.querySelector<HTMLDivElement>('#toast-editor-container'); // Use new ID
         this.saveButton = this.element.querySelector<HTMLButtonElement>('.section-edit-save');
         this.cancelButton = this.element.querySelector<HTMLButtonElement>('.section-edit-cancel');
 
-        if (!this.editorTargetElement || !this.saveButton || !this.cancelButton) {
-            console.error("Essential elements (.text-editor-target, .section-edit-save, .section-edit-cancel) not found within text-section-edit template.");
-            this.renderError("Editor structure incomplete in template.");
+        if (!this.editorContainerElement || !this.saveButton || !this.cancelButton) {
+            this.renderError("Editor structure incomplete (missing editor container or controls).");
             this.isLoading = false;
             return;
         }
@@ -103,24 +83,18 @@ export class TextSectionEdit implements ISectionEditComponent {
                 name: "main", // Assuming text content is 'main'
             });
             this.initialContent = resp.contentBytes ? atob(resp.contentBytes) : '';
-            console.log(`TextSectionEdit loaded initial content for ${this.sectionId}, length: ${this.initialContent.length}`);
-
-            // 3. Initialize Editor (only after data is loaded)
-            this.initializeEditor(this.editorTargetElement); // Pass target
-            this.bindControlEvents();
             this.isLoading = false;
-            // Editor init handles its own placeholder/content setting
+            this.initializeEditor(); // Initialize after data is fetched
+            this.bindControlEvents();
 
         } catch (error: any) {
             console.error(`Error loading initial content for TextSectionEdit ${this.sectionId}:`, error);
             this.isLoading = false;
-            if (error.status === 404) {
-                 // Content doesn't exist (new section), initialize editor with empty
+            if (error.response.status === 404) {
                  this.initialContent = '';
-                 this.initializeEditor(this.editorTargetElement);
+                 this.initializeEditor();
                  this.bindControlEvents();
             } else {
-                 // Other fetch error
                  this.renderError(`Failed to load initial content: ${error.message || 'Unknown error'}`);
             }
         }
@@ -131,118 +105,80 @@ export class TextSectionEdit implements ISectionEditComponent {
         this.element.innerHTML = `<div class="p-4 text-red-500 dark:text-red-400">${message}</div>`;
     }
 
-    /** Initializes the TinyMCE editor instance */
-    private initializeEditor(targetElement: HTMLElement): void {
-        const isDarkMode = document.documentElement.classList.contains('dark');
-        // Assuming static assets are served correctly
-        const tinyMCEPublicPath = '/static/js/gen/'; // Adjust if necessary
-
-        // Ensure any previous instance is removed *before* initializing a new one
-        if (this.editorInstance) {
-            console.warn("Removing lingering TinyMCE instance before re-initialization.");
-            try { tinymce.remove(this.editorInstance); } catch(e) { console.error(e); }
-            this.editorInstance = null;
-        }
-
-        tinymce.init({
-            target: targetElement,
-            plugins: 'autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount autoresize',
-            toolbar: 'undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
-            content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
-            height: 300,
-            menubar: false,
-            statusbar: false,
-            autoresize_bottom_margin: 10,
-            autoresize_min_height: 200,
-            skin_url: `${tinyMCEPublicPath}skins/ui/${isDarkMode ? 'oxide-dark' : 'oxide'}`,
-            content_css: `${tinyMCEPublicPath}skins/content/${isDarkMode ? 'dark' : 'default'}/content.min.css`,
-            license_key: 'gpl', // Or your commercial key
-            setup: (editor: Editor) => {
-                editor.on('init', () => {
-                    editor.setContent(this.initialContent || '');
-                    this.editorInstance = editor; // Store instance only on successful init
-                    // Don't focus immediately, let container call focus() if needed
-                    // editor.focus();
-                    console.log(`TinyMCE initialized for TextSectionEdit`);
-                });
-                editor.on('remove', () => {
-                    // Clear instance ref if editor is removed externally/during cleanup
-                    if (this.editorInstance === editor) {
-                        this.editorInstance = null;
-                        console.log(`Cleaned up editor instance ref on 'remove' event`);
-                    }
-                });
-                 // Optional: Add Cmd/Ctrl+Enter shortcut if desired
-                editor.on('keydown', (e: KeyboardEvent) => {
-                     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                         e.preventDefault();
-                         this.triggerSave(); // Call internal save handler
-                     }
-                });
-            }
-        }).catch((error: any) => {
-            console.error(`Error initializing TinyMCE for TextSectionEdit:`, error);
-            targetElement.innerHTML = `<p class="text-red-500">Error initializing Rich Text Editor.</p>`;
-        });
-    }
 
     /** Binds click events to the Save and Cancel buttons */
     private bindControlEvents(): void {
-        if (this.saveButton) {
-            this.saveButton.onclick = (e) => {
-                e.stopPropagation(); // Prevent bubbling
-                this.triggerSave();
-            };
+        if (this.saveButton) this.saveButton.onclick = null;
+        if (this.cancelButton) this.cancelButton.onclick = null;
+
+        if (this.saveButton) { this.saveButton.onclick = (e) => { e.stopPropagation(); this.triggerSave(); }; }
+        if (this.cancelButton) { this.cancelButton.onclick = (e) => { e.stopPropagation(); this.triggerCancel(); }; }
+    }
+
+    /** Initializes the Toast UI Editor instance */
+    private initializeEditor(): void {
+        if (!this.editorContainerElement) return;
+
+        // Destroy previous instance if any
+        if (this.editorInstance) {
+            try { this.editorInstance.destroy(); } catch(e) { console.error("Error destroying previous TUI Editor:", e);}
+            this.editorInstance = null;
         }
-        if (this.cancelButton) {
-            this.cancelButton.onclick = (e) => {
-                e.stopPropagation(); // Prevent bubbling
-                this.triggerCancel();
-            };
+
+        const isDarkMode = document.documentElement.classList.contains('dark');
+
+        try {
+            this.editorInstance = new Editor({
+                el: this.editorContainerElement,
+                initialValue: this.initialContent,
+                initialEditType: 'markdown', // Or 'wysiwyg'
+                previewStyle: 'vertical', // Or 'tab'
+                height: '400px', // Adjust as needed
+                theme: isDarkMode ? 'dark' : 'default',
+                usageStatistics: false, // Disable statistics
+                // plugins: [codeSyntaxHighlight] // If using NPM and plugin
+                // If using CDN for plugin:
+                plugins: [[codeSyntaxHighlight, { highlighter: Prism }]],
+                // Ensure 'Prism' is globally available if using the CDN plugin for codeSyntaxHighlight
+            });
+            console.log(`Toast UI Editor initialized for TextSectionEdit ${this.sectionId}`);
+        } catch (error) {
+            console.error("Error initializing Toast UI Editor:", error);
+            this.editorContainerElement.innerHTML = `<p class="text-red-500 p-4">Failed to initialize Markdown editor.</p>`;
         }
     }
 
     /** Handles the save action */
     private async triggerSave(): Promise<void> {
-        if (!this.editorInstance || typeof this.editorInstance.getContent !== 'function') {
-            console.error("Cannot save: TinyMCE instance not available.");
-            // Optionally show a toast error to the user
+        if (this.isSaving || !this.editorInstance) {
+            console.warn("Save already in progress or editor not ready.");
             return;
         }
 
-        const currentContent = this.editorInstance.getContent() || '';
-        // Avoid saving if content hasn't changed? Optional optimization.
-        // if (currentContent === this.initialContent) {
-        //     console.log("Content unchanged, skipping save.");
-        //     this.onSaveSuccess(); // Signal success to container anyway to switch mode
-        //     return;
-        // }
-
+        const currentMarkdown = this.editorInstance.getMarkdown(); // Get raw Markdown
         this.isSaving = true;
-        this.setControlLoading(true); // Show loading on buttons
+        this.setControlLoading(true);
 
         try {
-            const encodedContent = btoa(unescape(encodeURIComponent(currentContent)));
-            console.log(`TextSectionEdit saving content for ${this.sectionId}...`);
+            const encodedContent = btoa(unescape(encodeURIComponent(currentMarkdown)));
+            console.log(`TextSectionEdit (TUI Markdown) saving content for ${this.sectionId}...`);
 
             await ContentApi.contentServiceSetContent({
                 designId: this.designId,
                 sectionId: this.sectionId,
-                name: "main", // Or "html"
+                name: "main", // Still "main", but now it's Markdown
                 contentBytes: encodedContent,
             });
 
-            console.log(`TextSectionEdit save successful for ${this.sectionId}.`);
-            this.initialContent = currentContent; // Update initial content baseline after successful save
+            this.initialContent = currentMarkdown; // Update baseline
             this.isSaving = false;
-            // Don't hide loading here, the component will be destroyed by the container
-            await this.onSaveSuccess(); // Signal container that save succeeded
+            await this.onSaveSuccess();
 
         } catch (error: any) {
             console.error(`Error saving content for TextSectionEdit ${this.sectionId}:`, error);
             this.toastManager.showToast("Save Error", `Failed to save: ${error.message || 'Server error'}`, "error");
             this.isSaving = false;
-            this.setControlLoading(false); // Restore buttons on error
+            this.setControlLoading(false);
         }
     }
 
@@ -256,21 +192,19 @@ export class TextSectionEdit implements ISectionEditComponent {
 
     /** Focuses the editor */
     public focus(): void {
-       setTimeout(() => { this.editorInstance?.focus(); }, 50);
+       setTimeout(() => this.editorInstance?.focus(), 50);
     }
 
     /** Cleans up the editor instance */
     destroy(): void {
-        console.log(`Destroying TextSectionEdit for ${this.sectionId}`);
+        console.log(`Destroying TextSectionEdit (TUI Markdown) for ${this.sectionId}`);
         if (this.editorInstance) {
-            try { tinymce.remove(this.editorInstance); } catch (e) { console.error(e); }
+            try { this.editorInstance.destroy(); } catch(e) { console.error(e); }
             this.editorInstance = null;
         }
-        // Remove listeners
         if (this.saveButton) this.saveButton.onclick = null;
         if (this.cancelButton) this.cancelButton.onclick = null;
-        // if (this.validateButton) this.validateButton.onclick = null;
-        this.element.innerHTML = ''; // Clear element
+        this.element.innerHTML = '';
     }
 
     /** Helper to manage loading state on Save/Cancel buttons */
@@ -289,28 +223,18 @@ export class TextSectionEdit implements ISectionEditComponent {
         }
     }
 
-    /** Gets the current content from the editor */
-    public getContent(): SectionContent {
-        if (this.editorInstance && typeof this.editorInstance.getContent === 'function') {
-            try {
-                return this.editorInstance.getContent() || '';
-            } catch (error) {
-                 console.error(`Error getting content from TinyMCE:`, error);
-            }
-        }
-        return this.initialContent; // Fallback
-    }
-
      // Handle theme change if the editor is active
      public handleThemeChange(): void {
-         if (this.editorInstance && this.editorTargetElement) {
-             console.log("TextSectionEdit handling theme change...");
-             const currentContent = this.editorInstance.getContent();
-             // Re-initialize
-             this.destroy(); // Clean up old one first
-             this.initialContent = currentContent; // Update content baseline
-             this.initializeEditor(this.editorTargetElement); // Re-initialize
-             this.bindControlEvents(); // Re-bind controls
-         }
+        if (this.editorInstance) {
+            console.log("TextSectionEdit (TUI Markdown) handling theme change...");
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            // Toast UI Editor usually requires re-initialization for theme change
+            // or has a specific method. Let's try re-init.
+            const currentMarkdown = this.editorInstance.getMarkdown();
+            this.initialContent = currentMarkdown;
+            this.initializeEditor(); // This will destroy and recreate
+            // Note: Re-binding controls might be needed if initializeEditor clears the whole `this.element`
+            this.bindControlEvents();
+        }
      }
 }

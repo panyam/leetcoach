@@ -1,10 +1,8 @@
 package parser
 
 import (
-	"fmt"
 	"strings"
 	"testing"
-	"unicode"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,31 +24,32 @@ type expectedToken struct {
 func runLexerTest(t *testing.T, input string, expectedTokens []expectedToken, ignoreErrors bool) (lexer *Lexer) {
 	t.Helper()
 	lexer = NewLexer(strings.NewReader(input))
-	lval := &yySymType{} // The semantic value structure
+	lval := &SDLSymType{} // The semantic value structure
 
 	for i, exp := range expectedTokens {
 		tok := lexer.Lex(lval)
-		tokStr := tokenString(tok)
-		expTokStr := tokenString(exp.tok)
+		tokStr := TokenString(tok)
+		expTokStr := TokenString(exp.tok)
 		assert.Equal(t, exp.tok, tok, "Test %d: Token type mismatch. Expected %s, got %s ('%s')", i, expTokStr, tokStr, lexer.Text())
 		assert.Equal(t, exp.text, lexer.Text(), "Test %d: Token text mismatch for %s.", i, expTokStr)
 		assert.Equal(t, exp.startPos, lexer.Pos(), "Test %d: Token startPos mismatch for %s.", i, expTokStr)
 		assert.Equal(t, exp.endPos, lexer.End(), "Test %d: Token endPos mismatch for %s.", i, expTokStr)
-		assert.Equal(t, exp.startLine, lexer.tokenStartLine, "Test %d: Token startLine mismatch for %s.", i, expTokStr)
-		assert.Equal(t, exp.startCol, lexer.tokenStartCol, "Test %d: Token startCol mismatch for %s.", i, expTokStr)
+		tokenStartLine, tokenStartCol := lexer.Position()
+		assert.Equal(t, exp.startLine, tokenStartLine, "Test %d: Token startLine mismatch for %s.", i, expTokStr)
+		assert.Equal(t, exp.startCol, tokenStartCol, "Test %d: Token startCol mismatch for %s.", i, expTokStr)
 
 		// Check literal/identifier specific values if provided in expectation
 		if exp.literalVal != nil {
 			litExpr, ok := lval.expr.(*LiteralExpr)
 			require.True(t, ok, "Test %d: Expected LiteralExpr for token %s, got %T", i, expTokStr, lval.expr)
-			assert.Equal(t, exp.literalVal.Type.Tag, litExpr.Value.Type.Tag, "Test %d: Literal value type  mismatch for %s.", i, exp.tok)
+			assert.Equal(t, exp.literalVal.Type.Name, litExpr.Value.Type.Name, "Test %d: Literal value type  mismatch for %s.", i, exp.tok)
 			assert.Equal(t, exp.literalVal.Value, litExpr.Value.Value, "Test %d: Literal value type  mismatch for %s.", i, exp.tok)
 			assert.Equal(t, exp.startPos, litExpr.Pos(), "Test %d: LiteralExpr startPos mismatch for %s.", i, expTokStr)
 			assert.Equal(t, exp.endPos, litExpr.End(), "Test %d: LiteralExpr endPos mismatch for %s.", i, expTokStr)
 		}
 		if exp.identName != "" {
-			identExpr, ok := lval.expr.(*IdentifierExpr)
-			require.True(t, ok, "Test %d: Expected IdentifierExpr for token %s, got %T", i, expTokStr, lval.expr)
+			identExpr := lval.ident
+			require.NotNil(t, identExpr)
 			assert.Equal(t, exp.identName, identExpr.Name, "Test %d: Identifier name mismatch for %s.", i, expTokStr)
 			assert.Equal(t, exp.startPos, identExpr.Pos(), "Test %d: IdentifierExpr startPos mismatch for %s.", i, expTokStr)
 			assert.Equal(t, exp.endPos, identExpr.End(), "Test %d: IdentifierExpr endPos mismatch for %s.", i, expTokStr)
@@ -70,7 +69,7 @@ func runLexerTest(t *testing.T, input string, expectedTokens []expectedToken, ig
 
 	// After all expected tokens, Lex should return EOF
 	finalTok := lexer.Lex(lval)
-	assert.Equal(t, eof, finalTok, "Expected EOF after all tokens, got %s ('%s')", tokenString(finalTok), lexer.Text())
+	assert.Equal(t, eof, finalTok, "Expected EOF after all tokens, got %s ('%s')", TokenString(finalTok), lexer.Text())
 	if !ignoreErrors {
 		assert.NoError(t, lexer.lastError, "Expected no lexer error at the end")
 	}
@@ -177,30 +176,30 @@ func TestLexer_StringEscapes(t *testing.T) {
 func TestLexer_LineColumnTracking(t *testing.T) {
 	input := "abc\ndef\n  ghi"
 	lexer := NewLexer(strings.NewReader(input))
-	lval := &yySymType{}
+	lval := &SDLSymType{}
 
 	// abc
 	tok := lexer.Lex(lval)
 	assert.Equal(t, IDENTIFIER, tok)
-	assert.Equal(t, 1, lexer.tokenStartLine)
-	assert.Equal(t, 1, lexer.tokenStartCol)
+	assert.Equal(t, 1, tokenStartLine)
+	assert.Equal(t, 1, tokenStartCol)
 	assert.Equal(t, 0, lexer.Pos())
 	assert.Equal(t, 3, lexer.End())
 
 	// def
 	tok = lexer.Lex(lval)
 	assert.Equal(t, IDENTIFIER, tok)
-	assert.Equal(t, 2, lexer.tokenStartLine) // After '\n'
-	assert.Equal(t, 1, lexer.tokenStartCol)
+	assert.Equal(t, 2, tokenStartLine) // After '\n'
+	assert.Equal(t, 1, tokenStartCol)
 	assert.Equal(t, 4, lexer.Pos()) // 'a'(0) 'b'(1) 'c'(2) '\n'(3) 'd'(4)
 	assert.Equal(t, 7, lexer.End())
 
 	// ghi
 	tok = lexer.Lex(lval)
 	assert.Equal(t, IDENTIFIER, tok)
-	assert.Equal(t, 3, lexer.tokenStartLine)
-	assert.Equal(t, 3, lexer.tokenStartCol) // After '  '
-	assert.Equal(t, 10, lexer.Pos())        // d(4)e(5)f(6)\n(7) (8) (9)g(10)
+	assert.Equal(t, 3, tokenStartLine)
+	assert.Equal(t, 3, tokenStartCol) // After '  '
+	assert.Equal(t, 10, lexer.Pos())  // d(4)e(5)f(6)\n(7) (8) (9)g(10)
 	assert.Equal(t, 13, lexer.End())
 
 	tok = lexer.Lex(lval)
@@ -210,18 +209,18 @@ func TestLexer_LineColumnTracking(t *testing.T) {
 func TestLexer_UnterminatedString(t *testing.T) {
 	input := `"hello`
 	lexer := NewLexer(strings.NewReader(input))
-	lval := &yySymType{}
+	lval := &SDLSymType{}
 	lexer.Lex(lval) // Should call Error and return eof
 	require.Error(t, lexer.lastError)
 	assert.Contains(t, lexer.lastError.Error(), "unterminated string literal")
-	assert.Equal(t, 1, lexer.tokenStartLine)
-	assert.Equal(t, 1, lexer.tokenStartCol)
+	assert.Equal(t, 1, tokenStartLine)
+	assert.Equal(t, 1, tokenStartCol)
 }
 
 func TestLexer_InvalidEscape(t *testing.T) {
 	input := `"hello\xworld"` // \x is not a supported escape
 	lexer := NewLexer(strings.NewReader(input))
-	lval := &yySymType{}
+	lval := &SDLSymType{}
 	tok := lexer.Lex(lval)
 	require.Equal(t, STRING_LITERAL, tok) // Still returns a string token
 	require.Error(t, lexer.lastError)     // But Error() should have been called
@@ -251,90 +250,6 @@ func TestLexer_ComplexDurations(t *testing.T) {
 	runLexerTest(t, input2, expected2, true)
 }
 
-// tokenString helper needs yyToknames from generated sdl.go
-// For testing, we can define a minimal version or mock it.
-// Minimal version for testing:
-var testTokenNames = map[int]string{
-	eof:              "EOF",
-	IDENTIFIER:       "IDENTIFIER",
-	INT_LITERAL:      "INT_LITERAL",
-	FLOAT_LITERAL:    "FLOAT_LITERAL",
-	STRING_LITERAL:   "STRING_LITERAL",
-	BOOL_LITERAL:     "BOOL_LITERAL",
-	DURATION_LITERAL: "DURATION_LITERAL",
-	COMPONENT:        "COMPONENT",
-	SYSTEM:           "SYSTEM",
-	PARAM:            "PARAM",
-	USES:             "USES",
-	METHOD:           "METHOD",
-	INSTANCE:         "INSTANCE",
-	ANALYZE:          "ANALYZE",
-	EXPECT:           "EXPECT",
-	LET:              "LET",
-	IF:               "IF",
-	ELSE:             "ELSE",
-	DISTRIBUTE:       "DISTRIBUTE",
-	DEFAULT:          "DEFAULT",
-	RETURN:           "RETURN",
-	DELAY:            "DELAY",
-	WAIT:             "WAIT",
-	GO:               "GO",
-	LOG:              "LOG",
-	SWITCH:           "SWITCH",
-	CASE:             "CASE",
-	ENUM:             "ENUM",
-	IMPORT:           "IMPORT",
-	OPTIONS:          "OPTIONS",
-	TRUE:             "TRUE",  // Also keyword
-	FALSE:            "FALSE", // Also keyword
-	FOR:              "FOR",
-	INT:              "INT_TYPE", // Keyword for type
-	FLOAT:            "FLOAT_TYPE",
-	BOOL:             "BOOL_TYPE",
-	STRING:           "STRING_TYPE",
-	DURATION:         "DURATION_TYPE",
-	ASSIGN:           "ASSIGN",
-	COLON:            "COLON",
-	SEMICOLON:        "SEMICOLON",
-	LBRACE:           "LBRACE",
-	RBRACE:           "RBRACE",
-	LPAREN:           "LPAREN",
-	RPAREN:           "RPAREN",
-	COMMA:            "COMMA",
-	DOT:              "DOT",
-	ARROW:            "ARROW",
-	PLUS_ASSIGN:      "PLUS_ASSIGN",
-	MINUS_ASSIGN:     "MINUS_ASSIGN",
-	MUL_ASSIGN:       "MUL_ASSIGN",
-	DIV_ASSIGN:       "DIV_ASSIGN",
-	LET_ASSIGN:       "LET_ASSIGN",
-	OR:               "OR_OP",
-	AND:              "AND_OP",
-	EQ:               "EQ_OP",
-	NEQ:              "NEQ_OP",
-	LT:               "LT_OP",
-	LTE:              "LTE_OP",
-	GT:               "GT_OP",
-	GTE:              "GTE_OP",
-	PLUS:             "PLUS_OP",
-	MINUS:            "MINUS_OP",
-	MUL:              "MUL_OP",
-	DIV:              "DIV_OP",
-	MOD:              "MOD_OP",
-	NOT:              "NOT_OP",
-}
-
-func tokenString(tok int) string {
-	if name, ok := testTokenNames[tok]; ok {
-		return name
-	}
-	// For single char punct tokens that are not in the map
-	if tok > 0 && tok < 256 && !unicode.IsLetter(rune(tok)) && !unicode.IsDigit(rune(tok)) {
-		return fmt.Sprintf("'%c'", rune(tok))
-	}
-	return fmt.Sprintf("TOKEN<%d>", tok)
-}
-
 func TestLexer_DivisionAndMultilineComments(t *testing.T) {
 	input := "a / b /* comment * test */ c /**/ d"
 	expected := []expectedToken{
@@ -348,7 +263,7 @@ func TestLexer_DivisionAndMultilineComments(t *testing.T) {
 
 	input2 := "/*unterminated"
 	lexer2 := NewLexer(strings.NewReader(input2))
-	lval2 := &yySymType{}
+	lval2 := &SDLSymType{}
 	lexer2.Lex(lval2) // Should call Error and return eof
 	require.Error(t, lexer2.lastError)
 	assert.Contains(t, lexer2.lastError.Error(), "unterminated block comment")

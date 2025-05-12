@@ -3,18 +3,72 @@ package decl
 import (
 	"fmt"
 	"strings"
+
+	gfn "github.com/panyam/goutils/fn"
 )
 
 // Expr represents an expression node (evaluates to a value/state).
 type Expr interface {
 	Node
 	exprNode() // Marker method for expressions
+	InferredType() *Type
+	DeclaredType() *Type
+	SetInferredType(*Type)
+	SetDeclaredType(*Type)
+}
+
+type ExprBase struct {
+	NodeInfo
+	declaredType *Type
+	inferredType *Type
+}
+
+func (e *ExprBase) SetInferredType(t *Type) {
+	e.inferredType = t
+}
+
+func (e *ExprBase) InferredType() *Type {
+	return e.inferredType
+}
+
+func (e *ExprBase) SetDeclaredType(t *Type) {
+	e.declaredType = t
+}
+
+func (e *ExprBase) DeclaredType() *Type {
+	return e.declaredType
+}
+
+type ChainedExpr struct {
+	ExprBase
+	Children  []Expr
+	Operators []string
+}
+
+func (b *ChainedExpr) exprNode() {}
+func (b *ChainedExpr) stmtNode() {}
+func (b *ChainedExpr) String() string {
+	// Basic, doesn't handle precedence for parentheses
+	return fmt.Sprintf("(%s)", strings.Join(gfn.Map(b.Children, func(e Expr) string { return e.String() }), ", "))
+}
+
+// --- Expressions ---
+// TupleExpr represents `left operator right`
+type TupleExpr struct {
+	ExprBase
+	Children []Expr
+}
+
+func (b *TupleExpr) exprNode() {}
+func (b *TupleExpr) String() string {
+	// Basic, doesn't handle precedence for parentheses
+	return fmt.Sprintf("(%s)", strings.Join(gfn.Map(b.Children, func(e Expr) string { return e.String() }), ", "))
 }
 
 // --- Expressions ---
 // BinaryExpr represents `left operator right`
 type BinaryExpr struct {
-	NodeInfo
+	ExprBase
 	Left     Expr
 	Operator string // "||", "&&", "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "%"
 	Right    Expr
@@ -28,7 +82,7 @@ func (b *BinaryExpr) String() string {
 
 // UnaryExpr represents `operator operand`
 type UnaryExpr struct {
-	NodeInfo
+	ExprBase
 	Operator string // "!", "-"
 	Right    Expr
 }
@@ -38,7 +92,7 @@ func (u *UnaryExpr) String() string { return fmt.Sprintf("(%s%s)", u.Operator, u
 
 // LiteralExpr represents literal values
 type LiteralExpr struct {
-	NodeInfo
+	ExprBase
 	Value Value
 	// Duration specific fields could be added if needed after parsing
 	// DurationUnit string
@@ -52,7 +106,7 @@ func (l *LiteralExpr) String() string {
 
 // IdentifierExpr represents variable or function names
 type IdentifierExpr struct {
-	NodeInfo
+	ExprBase
 	Name string
 }
 
@@ -62,7 +116,7 @@ func (i *IdentifierExpr) String() string      { return i.Name }
 
 // MemberAccessExpr represents `receiver.member` (accessing parameters/fields)
 type MemberAccessExpr struct {
-	NodeInfo
+	ExprBase
 	Receiver Expr // The object/instance being accessed
 	Member   *IdentifierExpr
 }
@@ -72,7 +126,7 @@ func (m *MemberAccessExpr) String() string { return fmt.Sprintf("%s.%s", m.Recei
 
 // CallExpr represents `function(arg1, arg2, ...)` (user funcs, component methods, built-ins)
 type CallExpr struct {
-	NodeInfo
+	ExprBase
 	Function Expr   // Typically IdentifierExpr or MemberAccessExpr
 	Args     []Expr // Argument expressions
 }
@@ -88,21 +142,32 @@ func (c *CallExpr) String() string {
 
 // DistributeExpr represents the probabilistic choice expression/statement
 type DistributeExpr struct {
-	NodeInfo
+	ExprBase
 	TotalProb Expr // Optional total probability expression
-	Cases     []*DistributeExprCase
-	Default   Expr
+	Cases     []*CaseExpr
+	Default   Expr // default can only exist if TotalProb is given
 }
 
 func (d *DistributeExpr) exprNode()      {} // Can be expression
 func (d *DistributeExpr) stmtNode()      {} // Can be statement
 func (d *DistributeExpr) String() string { return "distribute {...}" }
 
-// DistributeExprnCase represents `probExpr => { block }`
-type DistributeExprCase struct {
-	NodeInfo
-	Probability Expr // Must evaluate to float outcome
-	Body        Expr
+// SampleExpr represents `delay durationExpr;`
+type SampleExpr struct {
+	ExprBase
+	FromExpr Expr // Must evaluate to Outcome[X]
 }
 
-func (d *DistributeExprCase) String() string { return fmt.Sprintf("%s => { ... }", d.Probability) }
+func (d *SampleExpr) stmtNode()      {}
+func (d *SampleExpr) exprNode()      {}
+func (d *SampleExpr) String() string { return fmt.Sprintf("sample %s;", d.FromExpr) }
+
+// CaseExpr represents a single case within a SwitchStmt
+type CaseExpr struct {
+	ExprBase
+	Condition Expr
+	Body      Expr
+}
+
+func (c *CaseExpr) exprNode()      {}
+func (c *CaseExpr) String() string { return fmt.Sprintf("case %s: %s", c.Condition, c.Body) }

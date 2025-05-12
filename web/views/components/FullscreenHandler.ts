@@ -107,7 +107,7 @@ export class FullscreenHandler {
     }
 
     private handleKeyDown(event: KeyboardEvent): void {
-        if (this.isFullscreen && event.key === 'Escape') {
+        if (false && this.isFullscreen && event.key === 'Escape') {
             this.exit();
         }
     }

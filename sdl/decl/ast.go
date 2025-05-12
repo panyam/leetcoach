@@ -38,37 +38,60 @@ type FileDecl struct {
 	resolved   bool
 	components map[string]*ComponentDecl
 	enums      map[string]*EnumDecl
+	imports    map[string]*ImportDecl
 	systems    map[string]*SystemDecl
 }
 
-func (f *FileDecl) GetComponent(name string) (*ComponentDecl, error) {
+func (f *FileDecl) ensureResolved() error {
 	if !f.resolved {
 		if err := f.Resolve(); err != nil {
-			return nil, err
+			return err
 		}
 		f.resolved = true
 	}
-	return f.components[name], nil
+	return nil
 }
 
-func (f *FileDecl) GetEnum(name string) (*EnumDecl, error) {
-	if !f.resolved {
-		if err := f.Resolve(); err != nil {
-			return nil, err
-		}
-		f.resolved = true
-	}
-	return f.enums[name], nil
+func (f *FileDecl) GetComponents() (out map[string]*ComponentDecl, err error) {
+	err = f.ensureResolved()
+	out = f.components
+	return
 }
 
-func (f *FileDecl) GetSystem(name string) (*SystemDecl, error) {
-	if !f.resolved {
-		if err := f.Resolve(); err != nil {
-			return nil, err
-		}
-		f.resolved = true
+func (f *FileDecl) GetComponent(name string) (out *ComponentDecl, err error) {
+	components, err := f.GetComponents()
+	if err == nil {
+		out = components[name]
 	}
-	return f.systems[name], nil
+	return
+}
+
+func (f *FileDecl) GetEnums() (out map[string]*EnumDecl, err error) {
+	err = f.ensureResolved()
+	out = f.enums
+	return
+}
+
+func (f *FileDecl) GetEnum(name string) (out *EnumDecl, err error) {
+	enums, err := f.GetEnums()
+	if err == nil {
+		out = enums[name]
+	}
+	return
+}
+
+func (f *FileDecl) GetSystems() (out map[string]*SystemDecl, err error) {
+	err = f.ensureResolved()
+	out = f.systems
+	return
+}
+
+func (f *FileDecl) GetSystem(name string) (out *SystemDecl, err error) {
+	systems, err := f.GetSystems()
+	if err == nil {
+		out = systems[name]
+	}
+	return
 }
 
 // Called to resolve specific AST aspects out of the parse tree
@@ -105,7 +128,9 @@ func (f *FileDecl) Resolve() error {
 			log.Printf("Found OptionsDecl (TODO: Implement processing)")
 
 		case *ImportDecl:
-			log.Printf("Found ImportDecl: %s (TODO: Implement handling)", node.Path)
+			if err := f.RegisterImport(node); err != nil {
+				return err
+			}
 
 		default:
 			// Ignore other node types at the top level? Or error?
@@ -146,6 +171,17 @@ func (f *FileDecl) RegisterEnum(c *EnumDecl) error {
 		return fmt.Errorf("enum definition '%s' already registered", c.NameNode.Name)
 	}
 	f.enums[c.NameNode.Name] = c
+	return nil
+}
+
+func (f *FileDecl) RegisterImport(c *ImportDecl) error {
+	if f.imports == nil {
+		f.imports = map[string]*ImportDecl{}
+	}
+	if _, exists := f.imports[c.ImportedAs()]; exists {
+		return fmt.Errorf("import definition '%s' already registered", c.ImportedAs())
+	}
+	f.imports[c.ImportedAs()] = c
 	return nil
 }
 
@@ -193,10 +229,26 @@ func (e *EnumDecl) String() string {
 // ImportDecl represents `import "path";`
 type ImportDecl struct {
 	NodeInfo
-	Path *LiteralExpr // Should be a STRING literal
+	Path         *LiteralExpr // Should be a STRING literal
+	Alias        *IdentifierExpr
+	ImportedItem *IdentifierExpr
 }
 
-func (i *ImportDecl) String() string { return fmt.Sprintf("import %s;", i.Path) }
+func (i *ImportDecl) String() string {
+	if i.Alias != nil {
+		return fmt.Sprintf("import %s as %s from '%s';", i.ImportedItem.Name, i.Alias.Name, i.Path)
+	} else {
+		return fmt.Sprintf("import %s from '%s';", i.ImportedItem.Name, i.Path)
+	}
+}
+
+// What the import is imported as if an alias is used
+func (i *ImportDecl) ImportedAs() string {
+	if i.Alias != nil {
+		return i.Alias.Name
+	}
+	return i.ImportedItem.Name
+}
 
 // --- ComponentDecl Definition ---
 
@@ -229,37 +281,62 @@ type ComponentDecl struct {
 	methods  map[string]*MethodDecl // Processed methods map[method_name]*MethodDef
 }
 
-func (d *ComponentDecl) GetParam(name string) (*ParamDecl, error) {
+func (d *ComponentDecl) ensureResolved() error {
 	if !d.resolved {
 		if err := d.Resolve(); err != nil {
-			return nil, err
+			return err
 		}
 		d.resolved = true
 	}
-	return d.params[name], nil
+	return nil
 }
 
-func (d *ComponentDecl) GetMethod(name string) (*MethodDecl, error) {
-	if !d.resolved {
-		if err := d.Resolve(); err != nil {
-			return nil, err
-		}
-	}
-	return d.methods[name], nil
+func (d *ComponentDecl) GetParams() (out map[string]*ParamDecl, err error) {
+	err = d.ensureResolved()
+	out = d.params
+	return
 }
 
-func (d *ComponentDecl) GetDependency(name string) (*UsesDecl, error) {
-	if !d.resolved {
-		if err := d.Resolve(); err != nil {
-			return nil, err
-		}
+func (d *ComponentDecl) GetParam(name string) (out *ParamDecl, err error) {
+	params, err := d.GetParams()
+	if err == nil {
+		out = params[name]
 	}
-	return d.uses[name], nil
+	return
+}
+
+func (d *ComponentDecl) GetMethods() (out map[string]*MethodDecl, err error) {
+	err = d.ensureResolved()
+	out = d.methods
+	return
+}
+
+func (d *ComponentDecl) GetMethod(name string) (out *MethodDecl, err error) {
+	methods, err := d.GetMethods()
+	if err == nil {
+		out = methods[name]
+	}
+	return
+}
+
+func (d *ComponentDecl) GetDependencies() (out map[string]*UsesDecl, err error) {
+	err = d.ensureResolved()
+	out = d.uses
+	return
+}
+
+func (d *ComponentDecl) GetDependency(name string) (out *UsesDecl, err error) {
+	dependencies, err := d.GetDependencies()
+	if err == nil {
+		out = dependencies[name]
+	}
+	return
 }
 
 func (d *ComponentDecl) Resolve() error {
 	d.params = map[string]*ParamDecl{}
-	d.uses = map[string]*UsesDecl{} // Processed dependencies map[local_name]*UsesDecl
+	d.uses = map[string]*UsesDecl{}      // Processed dependencies map[local_name]*UsesDecl
+	d.methods = map[string]*MethodDecl{} // Processed dependencies map[local_name]*UsesDecl
 
 	// Process body
 	for _, item := range d.Body {
@@ -315,35 +392,34 @@ type ComponentDeclBodyItem interface {
 	componentBodyItemNode()
 }
 
-// TypeName represents primitive types or registered enum identifiers.
-type TypeName struct {
+// TypeDecl represents primitive types or registered enum identifiers.
+type TypeDecl struct {
 	NodeInfo
 	// Can be one of the following
-	PrimitiveTypeName string // "int", "float", "bool", "string", "duration", or an EnumDecl identifier
-	EnumTypeName      string
-	OutcomeTypeName   string
+	Name string
+	Args []*TypeDecl
 }
 
-func (t *TypeName) Name() string {
-	if t.PrimitiveTypeName != "" {
-		return t.PrimitiveTypeName
+func (t *TypeDecl) Type() *Type {
+	return &Type{
+		Name:       t.Name,
+		ChildTypes: gfn.Map(t.Args, func(t *TypeDecl) *Type { return t.Type() }),
 	}
-	if t.EnumTypeName != "" {
-		return t.EnumTypeName
-	}
-	if t.OutcomeTypeName != "" {
-		return t.OutcomeTypeName
-	}
-	return ""
 }
 
-func (t *TypeName) String() string { return t.Name() }
+func (t *TypeDecl) String() string {
+	if len(t.Args) == 0 {
+		return fmt.Sprintf("Type { %s ", t.Name)
+	} else {
+		return fmt.Sprintf("Type { %s[%s] } ", t.Name, strings.Join(gfn.Map(t.Args, func(t *TypeDecl) string { return t.String() }), ", "))
+	}
+}
 
-// ParamDecl represents `param name: TypeName [= defaultExpr];`
+// ParamDecl represents `param name: TypeDecl [= defaultExpr];`
 type ParamDecl struct {
 	NodeInfo
 	Name         *IdentifierExpr
-	Type         *TypeName
+	Type         *TypeDecl
 	DefaultValue Expr // Optional
 }
 
@@ -377,7 +453,7 @@ type MethodDecl struct {
 	NodeInfo
 	NameNode   *IdentifierExpr
 	Parameters []*ParamDecl // Signature parameters (can be empty)
-	ReturnType *TypeName    // Optional return type (primitive or enum)
+	ReturnType *TypeDecl    // Optional return type (primitive or enum)
 	Body       *BlockStmt
 
 	Name string

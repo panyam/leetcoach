@@ -1,4 +1,3 @@
-// decl/lexer.go
 package parser
 
 import (
@@ -6,7 +5,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
+	"strings"
 	"unicode"
 )
 
@@ -48,8 +49,12 @@ func NewLexer(r io.Reader) *Lexer {
 
 // Error is called by the parser (or lexer itself) on an error.
 func (l *Lexer) Error(s string) {
-	l.lastError = fmt.Errorf("%s", s)
-	fmt.Println(s) // For immediate feedback during development
+	if l.Text() != "" {
+		l.lastError = fmt.Errorf("Line: %d, Col: %d - Error near '%s' --- %s", l.tokenStartLine, l.tokenStartCol, l.Text(), s)
+	} else {
+		l.lastError = fmt.Errorf("Line: %d, Col: %d - %s", l.tokenStartLine, l.tokenStartCol, s)
+	}
+	// fmt.Println(s) // For immediate feedback during development
 }
 
 // Position returns the line/col where the last token started
@@ -230,6 +235,10 @@ func (l *Lexer) scanIdentifierOrKeyword() (tok int, text string) {
 	}
 	text = l.buf.String()
 	switch text {
+	case "native":
+		return NATIVE, text
+	case "use":
+		return USE, text
 	case "component":
 		return COMPONENT, text
 	case "system":
@@ -250,9 +259,13 @@ func (l *Lexer) scanIdentifierOrKeyword() (tok int, text string) {
 		return LET, text
 	case "if":
 		return IF, text
+	case "tup":
+		return TUP, text
 	case "else":
 		return ELSE, text
-	case "distribute":
+	case "sample":
+		return SAMPLE, text
+	case "dist":
 		return DISTRIBUTE, text
 	case "default":
 		return DEFAULT, text
@@ -274,6 +287,10 @@ func (l *Lexer) scanIdentifierOrKeyword() (tok int, text string) {
 		return ENUM, text
 	case "import":
 		return IMPORT, text
+	case "from":
+		return FROM, text
+	case "as":
+		return AS, text
 	case "options":
 		return OPTIONS, text
 	case "true":
@@ -282,16 +299,18 @@ func (l *Lexer) scanIdentifierOrKeyword() (tok int, text string) {
 		return BOOL_LITERAL, text
 	case "for":
 		return FOR, text
-	case "int":
-		return INT, text
-	case "float":
-		return FLOAT, text
-	case "bool":
-		return BOOL, text
-	case "string":
-		return STRING, text
-	case "duration":
-		return DURATION, text
+		/*
+			case "int":
+				return INT, text
+			case "float":
+				return FLOAT, text
+			case "bool":
+				return BOOL, text
+			case "string":
+				return STRING, text
+			case "duration":
+				return DURATION, text
+		*/
 	default:
 		return IDENTIFIER, text
 	}
@@ -361,7 +380,7 @@ func (l *Lexer) scanString() (tok int, content string) {
 }
 
 // Lex is the main lexing function called by the parser.
-func (l *Lexer) Lex(lval *yySymType) int {
+func (l *Lexer) Lex(lval *SDLSymType) int {
 	var tokenCode int
 	if l.skipWhitespace() {
 		tokenCode = eof
@@ -391,15 +410,15 @@ func (l *Lexer) Lex(lval *yySymType) int {
 
 		switch tok {
 		case IDENTIFIER:
-			lval.expr = newIdentifierExpr(text, startPosSnapshot, endPos)
+			lval.ident = newIdentifierExpr(text, startPosSnapshot, endPos)
 		case BOOL_LITERAL:
 			boolVal, _ := NewRuntimeValue(BoolType, text == "true")
 			lval.expr = newLiteralExpr(boolVal, startPosSnapshot, endPos)
 		case INT, FLOAT, BOOL, STRING, DURATION: // Type keywords
-			lval.node = &TokenNode{NodeInfo: newNodeInfo(startPosSnapshot, endPos), Text: text}
+			lval.node = newTokenNode(startPosSnapshot, endPos, text)
 		default: // Other keywords
 			// Pass position via Node, if grammar expects Node for keywords
-			lval.node = &TokenNode{NodeInfo: newNodeInfo(startPosSnapshot, endPos), Text: text}
+			lval.node = newTokenNode(startPosSnapshot, endPos, text)
 			lval.sval = text // Keep sval too for compatibility if rules use it for ops
 		}
 		return tok
@@ -480,13 +499,15 @@ func (l *Lexer) Lex(lval *yySymType) int {
 
 	// Handle multi-character operators
 	switch r {
-	case ';', '{', '}', '(', ')', ',', '.':
+	case ';', '{', '}', '(', ')', ',', '.', '[', ']':
 		l.read()
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
+		lval.node = newTokenNode(startPosSnapshot, currentEndPos, l.tokenText)
 		return map[rune]int{
 			';': SEMICOLON,
 			'{': LBRACE,
 			'}': RBRACE,
+			'[': LSQUARE,
+			']': RSQUARE,
 			'(': LPAREN,
 			')': RPAREN,
 			',': COMMA,
@@ -498,168 +519,117 @@ func (l *Lexer) Lex(lval *yySymType) int {
 			l.read()
 			l.tokenText = ":="
 			currentEndPos = l.pos
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
+			lval.node = newTokenNode(startPosSnapshot, currentEndPos, l.tokenText)
 			tokenCode = LET_ASSIGN
 			return tokenCode
 		}
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
+		lval.node = newTokenNode(startPosSnapshot, currentEndPos, l.tokenText)
 		tokenCode = COLON
 		return tokenCode
 	case '=':
 		l.read()
-		if l.peek() == '=' {
-			l.read()
-			l.tokenText = "=="
-			currentEndPos = l.pos
-			lval.sval = "=="
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = EQ
-			return tokenCode
-		}
 		if l.peek() == '>' {
 			l.read()
 			l.tokenText = "=>"
 			currentEndPos = l.pos
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
+			lval.node = newTokenNode(startPosSnapshot, currentEndPos, l.tokenText)
 			tokenCode = ARROW
 			return tokenCode
 		}
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
+		lval.node = newTokenNode(startPosSnapshot, currentEndPos, l.tokenText)
 		tokenCode = ASSIGN
-		return tokenCode
-	case '|':
-		if l.peekN(1) == '|' {
-			l.read()
-			l.read()
-			l.tokenText = "||"
-			currentEndPos = l.pos
-			lval.sval = "||"
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = OR
-			return tokenCode
-		}
-	case '&':
-		if l.peekN(1) == '&' {
-			l.read()
-			l.read()
-			l.tokenText = "&&"
-			currentEndPos = l.pos
-			lval.sval = "&&"
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = AND
-			return tokenCode
-		}
-	case '!':
-		l.read()
-		if l.peek() == '=' {
-			l.read()
-			l.tokenText = "!="
-			currentEndPos = l.pos
-			lval.sval = "!="
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = NEQ
-			return tokenCode
-		}
-		lval.sval = "!"
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-		tokenCode = NOT
-		return tokenCode
-	case '<':
-		l.read()
-		if l.peek() == '=' {
-			l.read()
-			l.tokenText = "<="
-			currentEndPos = l.pos
-			lval.sval = "<="
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = LTE
-			return tokenCode
-		}
-		lval.sval = "<"
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-		tokenCode = LT
-		return tokenCode
-	case '>':
-		l.read()
-		if l.peek() == '=' {
-			l.read()
-			l.tokenText = ">="
-			currentEndPos = l.pos
-			lval.sval = ">="
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = GTE
-			return tokenCode
-		}
-		lval.sval = ">"
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-		tokenCode = GT
-		return tokenCode
-	case '+':
-		l.read()
-		if l.peek() == '=' {
-			l.read()
-			l.tokenText = "+="
-			currentEndPos = l.pos
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = PLUS_ASSIGN
-			return tokenCode
-		}
-		lval.sval = "+"
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-		tokenCode = PLUS
-		return tokenCode
-	case '-':
-		l.read()
-		if l.peek() == '=' {
-			l.read()
-			l.tokenText = "-="
-			currentEndPos = l.pos
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = MINUS_ASSIGN
-			return tokenCode
-		}
-		lval.sval = "-"
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-		tokenCode = MINUS
-		return tokenCode
-	case '*':
-		l.read()
-		if l.peek() == '=' {
-			l.read()
-			l.tokenText = "*="
-			currentEndPos = l.pos
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = MUL_ASSIGN
-			return tokenCode
-		}
-		lval.sval = "*"
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-		tokenCode = MUL
-		return tokenCode
-	case '/': // Comments handled in skipWhitespace
-		l.read()
-		if l.peek() == '=' {
-			l.read()
-			l.tokenText = "/="
-			currentEndPos = l.pos
-			lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-			tokenCode = DIV_ASSIGN
-			return tokenCode
-		}
-		lval.sval = "/"
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-		tokenCode = DIV
-		return tokenCode
-	case '%':
-		l.read()
-		lval.sval = "%"
-		lval.node = &TokenNode{newNodeInfo(startPosSnapshot, currentEndPos), l.tokenText}
-		tokenCode = MOD
 		return tokenCode
 	default:
 	}
 
-	tokenCode = eof // Return EOF on error to stop parser? Or a special error token? EOF is safer.
+	opchars := "<>&^%$#@!*~=/|:+-"
+	if l.peek() == '-' && strings.IndexRune(opchars, l.peekN(1)) < 0 {
+		l.read()
+		lval.node = newTokenNode(startPosSnapshot, currentEndPos, l.tokenText)
+		tokenCode = MINUS
+		return tokenCode
+	}
+
+	var out []rune
+	for strings.IndexRune(opchars, l.peek()) >= 0 {
+		out = append(out, l.peek())
+		l.read()
+	}
+	log.Println("At Peek: ", string(l.peek()))
+	lval.node = newTokenNode(startPosSnapshot, currentEndPos, string(out))
+	tokenCode = BINARY_OP
 	l.Error(fmt.Sprintf("unexpected character '%c'", r))
 	return eof // Indicate an error that should halt parsing
+}
+
+// TokenString helper needs yyToknames from generated sdl.go
+// For testing, we can define a minimal version or mock it.
+// Minimal version for testing:
+var testTokenNames = map[int]string{
+	eof:              "EOF",
+	IDENTIFIER:       "IDENTIFIER",
+	INT_LITERAL:      "INT_LITERAL",
+	FLOAT_LITERAL:    "FLOAT_LITERAL",
+	STRING_LITERAL:   "STRING_LITERAL",
+	BOOL_LITERAL:     "BOOL_LITERAL",
+	DURATION_LITERAL: "DURATION_LITERAL",
+	NATIVE:           "NATIVE",
+	USE:              "USE",
+	COMPONENT:        "COMPONENT",
+	SYSTEM:           "SYSTEM",
+	PARAM:            "PARAM",
+	USES:             "USES",
+	METHOD:           "METHOD",
+	INSTANCE:         "INSTANCE",
+	ANALYZE:          "ANALYZE",
+	EXPECT:           "EXPECT",
+	LET:              "LET",
+	IF:               "IF",
+	ELSE:             "ELSE",
+	DISTRIBUTE:       "DISTRIBUTE",
+	DEFAULT:          "DEFAULT",
+	RETURN:           "RETURN",
+	DELAY:            "DELAY",
+	WAIT:             "WAIT",
+	GO:               "GO",
+	LOG:              "LOG",
+	SWITCH:           "SWITCH",
+	CASE:             "CASE",
+	ENUM:             "ENUM",
+	IMPORT:           "IMPORT",
+	FROM:             "FROM",
+	AS:               "AS",
+	OPTIONS:          "OPTIONS",
+	FOR:              "FOR",
+	INT:              "int", // Keyword for type
+	FLOAT:            "float",
+	BOOL:             "bool",
+	STRING:           "string",
+	DURATION:         "Duration",
+	ASSIGN:           "ASSIGN",
+	COLON:            "COLON",
+	SEMICOLON:        "SEMICOLON",
+	LBRACE:           "LBRACE",
+	RBRACE:           "RBRACE",
+	LSQUARE:          "LSQUARE",
+	RSQUARE:          "RSQUARE",
+	LPAREN:           "LPAREN",
+	RPAREN:           "RPAREN",
+	COMMA:            "COMMA",
+	DOT:              "DOT",
+	ARROW:            "ARROW",
+	LET_ASSIGN:       "LET_ASSIGN",
+	BINARY_OP:        "BINARY_OP",
+	MINUS:            "MINUS",
+}
+
+func TokenString(tok int) string {
+	if name, ok := testTokenNames[tok]; ok {
+		return name
+	}
+	// For single char punct tokens that are not in the map
+	if tok > 0 && tok < 256 && !unicode.IsLetter(rune(tok)) && !unicode.IsDigit(rune(tok)) {
+		return fmt.Sprintf("'%c'", rune(tok))
+	}
+	return fmt.Sprintf("TOKEN<%d>", tok)
 }

@@ -27,13 +27,15 @@ func (b *BlockStmt) String() string { return "{ ...statements... }" } // Simplif
 // LetStmt represents `let var = expr;`
 type LetStmt struct {
 	NodeInfo
-	Variable *IdentifierExpr
-	Value    Expr
+	Variables []*IdentifierExpr
+	Value     Expr
 }
 
 func (l *LetStmt) stmtNode()           {}
 func (l *LetStmt) systemBodyItemNode() {} // Allow let at system level
-func (l *LetStmt) String() string      { return fmt.Sprintf("let %s = %s;", l.Variable, l.Value) }
+func (l *LetStmt) String() string {
+	return fmt.Sprintf("let %s = %s;", strings.Join(gfn.Map(l.Variables, func(i *IdentifierExpr) string { return i.String() }), ", "), l.Value)
+}
 
 // ExprStmt represents an expression used as a statement (e.g., a call)
 type ExprStmt struct {
@@ -64,30 +66,10 @@ type IfStmt struct {
 func (i *IfStmt) stmtNode()      {}
 func (i *IfStmt) String() string { return fmt.Sprintf("if (%s) { ... } else { ... }", i.Condition) }
 
-// DistributeStmt represents probabilistic control flow
-type DistributeStmt struct {
-	NodeInfo
-	Total       Expr // Optional total probability expression (float outcome)
-	Cases       []*DistributeCase
-	DefaultCase *DefaultCase // Optional
-}
-
-func (d *DistributeStmt) stmtNode()      {}
-func (d *DistributeStmt) String() string { return "distribute { ... }" }
-
-// DistributeCase represents `probExpr => { block }`
-type DistributeCase struct {
-	NodeInfo
-	Probability Expr // Must evaluate to float outcome
-	Body        *BlockStmt
-}
-
-func (d *DistributeCase) String() string { return fmt.Sprintf("%s => { ... }", d.Probability) }
-
 // DefaultCase represents `default => { block }`
 type DefaultCase struct {
 	NodeInfo
-	Body *BlockStmt
+	Body Stmt
 }
 
 func (d *DefaultCase) String() string { return "default => { ... }" }
@@ -125,8 +107,8 @@ type GoStmt struct {
 	NodeInfo
 	VarName *IdentifierExpr
 	// Can call a async/parallel on a statement or an expression
-	Stmt *BlockStmt
-	Expr *Expr
+	Stmt Stmt
+	Expr Expr
 }
 
 func (p *GoStmt) stmtNode()      {}
@@ -149,32 +131,10 @@ type ExpectStmt struct {
 	Threshold Expr
 }
 
+func (p *ExpectStmt) stmtNode() {}
 func (e *ExpectStmt) String() string {
 	return fmt.Sprintf("%s %s %s;", e.Target, e.Operator, e.Threshold)
 }
-
-// SwitchStmt represents conditional branching
-type SwitchStmt struct {
-	NodeInfo
-	Input   Expr
-	Cases   []*CaseExpr /* ; Default *BlockExpr */
-	Default Expr
-}
-
-func (s *SwitchStmt) exprNode() {}
-func (s *SwitchStmt) String() string { /* Basic string representation */
-	return fmt.Sprintf("switch(%s){...}", s.Input)
-}
-
-// CaseExpr represents a single case within a SwitchStmt
-type CaseExpr struct {
-	NodeInfo
-	Condition Expr
-	Body      Expr
-}
-
-func (c *CaseExpr) exprNode()      {}
-func (c *CaseExpr) String() string { return fmt.Sprintf("case %s: %s", c.Condition, c.Body) }
 
 // AssignmentStmt represents setting a parameter value in an InstanceDecl.
 type AssignmentStmt struct {
@@ -186,3 +146,26 @@ type AssignmentStmt struct {
 }
 
 func (p *AssignmentStmt) String() string { return fmt.Sprintf("%s = %s", p.Var.Name, p.Value) }
+func (p *AssignmentStmt) stmtNode()      {}
+
+// SwitchStmt represents the probabilistic choice expression/statement
+type SwitchStmt struct {
+	NodeInfo
+	Expr    Expr
+	Cases   []*CaseStmt
+	Default Stmt // default can only exist if TotalProb is given
+}
+
+func (d *SwitchStmt) exprNode()      {} // Can be expression
+func (d *SwitchStmt) stmtNode()      {} // Can be statement
+func (d *SwitchStmt) String() string { return "distribute {...}" }
+
+// CaseStmt represents a single case within a SwitchStmt
+type CaseStmt struct {
+	NodeInfo
+	Condition Expr
+	Body      Stmt
+}
+
+func (c *CaseStmt) exprNode()      {}
+func (c *CaseStmt) String() string { return fmt.Sprintf("case %s: %s", c.Condition, c.Body) }

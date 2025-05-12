@@ -1716,10 +1716,6 @@ select {
   min-width: 100%;
 }
 
-.max-w-4xl {
-  max-width: 56rem;
-}
-
 .max-w-7xl {
   max-width: 80rem;
 }
@@ -2981,6 +2977,10 @@ select {
     width: 100%;
   }
 
+  .sm\:max-w-2xl {
+    max-width: 42rem;
+  }
+
   .sm\:max-w-lg {
     max-width: 32rem;
   }
@@ -3089,8 +3089,18 @@ select {
 }
 
 @media (min-width: 1024px) {
+  .lg\:max-w-4xl {
+    max-width: 56rem;
+  }
+
   .lg\:px-8 {
     padding-left: 2rem;
     padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  .\32xl\:max-w-7xl {
+    max-width: 80rem;
   }
 }

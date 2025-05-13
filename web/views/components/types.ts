@@ -61,13 +61,14 @@ export interface SystemDescriptionDocumentSection extends BaseDocumentSection {
 
 export interface SectionData {
   id: string;
-  designId: string; // <-- ADD THIS LINE
+  designId: string;
   type: SectionType;
   title: string;
   // content?: TextContent | DrawingContent | PlotContent | null;
   order: number;
   getAnswerPrompt: string;
   verifyAnswerPrompt: string;
+  editInFSMode?: boolean;
 }
 
 export interface SectionCallbacks {

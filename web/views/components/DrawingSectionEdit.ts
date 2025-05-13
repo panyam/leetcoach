@@ -155,6 +155,12 @@ export class DrawingSectionEdit implements ISectionEditComponent {
         console.log("Excalidraw editor initialized via wrapper.");
     }
 
+    public resizeContentForFullscreen(isEntering: boolean) {
+        const sceneData = (this.currentContent?.data || { elements: [], appState: {} }) as ExcalidrawSceneData;
+        const initialElements = sceneData?.elements || [] // convertToExcalidrawElements([...(sceneData?.elements || [])]); // Use spread to ensure mutable array if needed
+        this.excalidrawAPI?.scrollToContent(initialElements, { fitToContent: true})
+    }
+
     private handleExcalidrawChange(elements: ReadonlyArray<any>, appState: any /* AppState */, files: any /* BinaryFiles */): void {
         // Update internal state immediately on change
         this.currentContent = { format: 'excalidraw/json', data: { elements, appState } };

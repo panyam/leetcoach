@@ -16,5 +16,11 @@ module.exports = {
   darkMode: 'class',
   theme: {
   },
-  plugins: [require('@tailwindcss/forms'), require('@tailwindcss/typography')],
+  plugins: [require('@tailwindcss/forms')/*, require('@tailwindcss/typography')*/],
+  extend: {
+      screens: {
+      print: { raw: 'print' },
+      screen: { raw: 'screen' },
+    },
+  }
 }

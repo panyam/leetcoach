@@ -375,6 +375,9 @@ export class SectionContainer {
         if (this.mode === 'edit' || this.isLoading) return;
         console.log(`Requesting switch to edit mode for ${this.sectionId}`);
         this.renderModeComponent('edit');
+        if (this.data.editInFSMode) {
+            setTimeout(() => this.fullscreenHandler?.enter(), 50)
+        }
     }
 
     /** Switches display to View mode */

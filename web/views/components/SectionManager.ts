@@ -412,6 +412,7 @@ export class SectionManager {
         const sectionId = sectionData.id;
         const type = sectionData.type;
         const order = sectionData.order;
+        // sectionData.editInFSMode = type == 'drawing';
 
         if (!sectionId || !type) {
             console.error("Cannot create section internal: Missing ID or Type in data", sectionData);

@@ -52,6 +52,11 @@ export class DrawingSectionEdit implements ISectionEditComponent {
         this.loadTemplateAndData();
     }
 
+    // Editor components are NOT ok to exit fullscreen just like that
+    public shouldExitFullscreen(): boolean {
+      return false;
+    }
+
     private renderError(message: string): void {
         this.element.innerHTML = `<div class="p-4 text-red-500 dark:text-red-400">${message}</div>`;
     }

@@ -81,9 +81,10 @@ export class SectionManager {
         case 'text':
           default: titles = this.TEXT_TITLES;
         }
-        const randomIndex = Math.floor(Math.random() * titles.length);
+        // const randomIndex = Math.floor(Math.random() * titles.length);
         // Fallback uses replace for better naming
-        return titles[randomIndex] || `New ${type.replace('_', ' ')} Section`;
+        // return titles[randomIndex] || `New ${type.replace('_', ' ')} Section`;
+        return `New ${type.replace('_', ' ')} section`;
     }
 
 

@@ -50,7 +50,7 @@ func (v *DesignEditorPage) Load(r *http.Request, w http.ResponseWriter, vc *View
 		// create a new design
 		ctx := vc.ClientMgr.ClientContext(nil, loggedInUserId)
 		v.Design = &protos.Design{
-			Name: randomDesignName(),
+			Name: "New Untitled Design", // randomDesignName(),
 		}
 		resp, err := client.CreateDesign(ctx, &protos.CreateDesignRequest{
 			Design: v.Design,

@@ -34,6 +34,11 @@ export class TextSectionView implements ISectionViewComponent {
         this.loadTemplateAndData();
     }
 
+    // Viewer components are ok to exit fullscreen just like that
+    public shouldExitFullscreen(): boolean {
+      return true;
+    }
+
     /** Fetches content from the API and then renders */
     private async loadTemplateAndData(): Promise<void> {
         this.isLoading = true;

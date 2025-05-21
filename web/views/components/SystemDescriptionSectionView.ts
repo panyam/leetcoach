@@ -38,6 +38,11 @@ export class SystemDescriptionSectionView implements ISectionViewComponent {
         this.loadTemplateAndData();
     }
 
+    // Viewer components are ok to exit fullscreen just like that
+    public shouldExitFullscreen(): boolean {
+      return true;
+    }
+
     private async loadTemplateAndData(): Promise<void> {
         this.isLoading = true;
         // 1. Load Template Structure

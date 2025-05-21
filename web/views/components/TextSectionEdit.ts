@@ -52,6 +52,11 @@ export class TextSectionEdit implements ISectionEditComponent {
         this.loadTemplateAndData();
     }
 
+    // Editor components are NOT ok to exit fullscreen just like that
+    public shouldExitFullscreen(): boolean {
+      return false;
+    }
+
     /** Loads template HTML, fetches initial data, then initializes editor */
     private async loadTemplateAndData(): Promise<void> {
         this.isLoading = true;

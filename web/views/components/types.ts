@@ -98,6 +98,9 @@ export interface ISectionModeComponent {
     element: HTMLElement;
     /** Cleans up resources like event listeners, editor instances, etc. */
     destroy(): void;
+
+    // Called to chck if the component is ready to be exited out of fullscreen mode
+    shouldExitFullscreen(): boolean
 }
 
 /** Interface for components displaying section content in view mode. */

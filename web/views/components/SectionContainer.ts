@@ -195,7 +195,7 @@ export class SectionContainer {
                          settingsButton: this.settingsButton,
                          deleteButton: this.deleteButton,
                      },
-                     this.resizeContentForFullscreen.bind(this) // Pass the resize callback
+                     this.resizeContentForFullscreen.bind(this), // Pass the resize callback
                  );
             }
              console.log(`Fullscreen enabled for section ${this.data.id}`);
@@ -212,7 +212,10 @@ export class SectionContainer {
     public destroy(): void {
         this.activeModeComponent?.destroy(); // Destroy active mode component
         this.activeModeComponent = null;
-        this.fullscreenHandler?.destroy();
+        if (this.fullscreenHandler)  {
+            this.fullscreenHandler.activeModeComponent = this.activeModeComponent
+            this.fullscreenHandler.destroy();
+        }
         // Remove container's own listeners if any were added directly
     }
 
@@ -281,6 +284,9 @@ export class SectionContainer {
         console.log(`Destroying previous mode component for ${this.sectionId} (if any)`);
         this.activeModeComponent?.destroy();
         this.activeModeComponent = null;
+        if (this.fullscreenHandler)  {
+            this.fullscreenHandler.activeModeComponent = this.activeModeComponent
+        }
         this.contentContainer.innerHTML = ''; // Clear container
 
         // 2. Determine which component class to use
@@ -349,6 +355,9 @@ export class SectionContainer {
                      this.sectionId // Pass ID
                  );
             }
+            if (this.fullscreenHandler)  {
+                this.fullscreenHandler.activeModeComponent = this.activeModeComponent
+            }
             if (sectionType != "text") this.enableFullscreen();
 
             this.mode = targetMode;
@@ -363,10 +372,13 @@ export class SectionContainer {
              // contentContainer should be populated by the component now, no need to clear loading state here.
 
         } catch (error) {
-             console.error(`Error instantiating ${targetMode} component for ${this.sectionId}:`, error);
-             this.renderErrorState(`Error rendering ${targetMode} mode.`);
-             this.activeModeComponent = null;
-             this.isLoading = false;
+            console.error(`Error instantiating ${targetMode} component for ${this.sectionId}:`, error);
+            this.renderErrorState(`Error rendering ${targetMode} mode.`);
+            this.activeModeComponent = null;
+            if (this.fullscreenHandler)  {
+                this.fullscreenHandler.activeModeComponent = this.activeModeComponent
+            }
+            this.isLoading = false;
         }
     }
 

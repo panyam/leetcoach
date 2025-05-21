@@ -1,4 +1,4 @@
-// FILE: ./web/views/components/FullscreenHandler.ts
+import { ISectionModeComponent, ISectionViewComponent, ISectionEditComponent } from './types';
 
 interface FullscreenHandlerElements {
     sectionElement: HTMLElement;
@@ -17,6 +17,7 @@ interface FullscreenHandlerElements {
 type ResizeCallback = (isEntering: boolean) => void;
 
 export class FullscreenHandler {
+    public activeModeComponent: ISectionModeComponent | null = null;
     private elements: FullscreenHandlerElements;
     private resizeCallback: ResizeCallback;
     private isFullscreen: boolean = false;
@@ -107,8 +108,10 @@ export class FullscreenHandler {
     }
 
     private handleKeyDown(event: KeyboardEvent): void {
-        if (false && this.isFullscreen && event.key === 'Escape') {
-            this.exit();
+        if (this.isFullscreen && event.key === 'Escape') {
+            if (this.activeModeComponent != null && this.activeModeComponent.shouldExitFullscreen()) {
+                this.exit();
+            }
         }
     }
 

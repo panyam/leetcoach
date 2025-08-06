@@ -1,0 +1,12 @@
+```
+service Cache
+    Get(key string) (value any) {
+        GET /keys/{key}
+    }
+    Set(key string, value any) {
+        PUT /keys/{key}
+        BODY: value
+    }
+    Delete(key string) {
+        DELETE /keys/{key}
+    }

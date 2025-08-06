@@ -1,0 +1,22 @@
+{
+  "createdAt": "2025-05-12T19:43:35.778908-07:00",
+  "updatedAt": "2025-05-12T20:52:30.824833-07:00",
+  "version": 0,
+  "id": "01gf",
+  "ownerId": "test1",
+  "visibility": "private",
+  "visibleTo": null,
+  "name": "Design Template",
+  "description": "",
+  "sectionIds": [
+    "inkr",
+    "6fmd",
+    "yesi",
+    "111s",
+    "e3hv",
+    "v93d"
+  ],
+  "contentMetadata": {
+    "Properties": null
+  }
+}

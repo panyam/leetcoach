@@ -1,0 +1,19 @@
+{
+  "createdAt": "2025-05-13T09:35:50.429206-07:00",
+  "updatedAt": "2025-05-13T09:45:03.58924-07:00",
+  "version": 0,
+  "id": "7m7w",
+  "ownerId": "test1",
+  "visibility": "private",
+  "visibleTo": null,
+  "name": "Google Docs",
+  "description": "",
+  "sectionIds": [
+    "2ljo",
+    "86w8",
+    "qk9d"
+  ],
+  "contentMetadata": {
+    "Properties": null
+  }
+}

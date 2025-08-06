@@ -1,0 +1,17 @@
+```service ProblemsService {
+  ListProblems(offset, count int) (results []Problem, nextOffset int) {
+    GET /problems?....
+  }
+  GetProblem(problemId string) (Problem) {
+    GET /problems/{problemId}
+  }
+  CreateSubmission(problemId string, code string) (Submission) {
+    POST /problems/{problemId}/submissions
+  }
+}
+
+service CompeittionService {
+  GetLeaderBoard(competitionId string) LeaderBoard {
+    GET /competitions/{competitionId}/leaderboard
+  }
+}

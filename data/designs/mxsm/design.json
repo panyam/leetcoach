@@ -1,0 +1,21 @@
+{
+  "createdAt": "2025-05-13T09:42:37.114201-07:00",
+  "updatedAt": "2025-05-13T12:18:28.981017-07:00",
+  "version": 0,
+  "id": "mxsm",
+  "ownerId": "test1",
+  "visibility": "private",
+  "visibleTo": null,
+  "name": "Whatsapp",
+  "description": "",
+  "sectionIds": [
+    "r5s0",
+    "ana3",
+    "2t5g",
+    "tv3q",
+    "3rj4"
+  ],
+  "contentMetadata": {
+    "Properties": null
+  }
+}

@@ -1,0 +1,1 @@
+While our index provides fast lookups for a URL (based on the ShortId), the Short URLs are not updated once created.   So we can cache them and serve them directly instead of hitting our primary DB on each redirect.

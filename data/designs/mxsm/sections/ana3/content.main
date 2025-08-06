@@ -1,0 +1,24 @@
+```
+record User {
+    Id string
+    Name string
+    Avatar Url
+    ...
+}
+
+record Group {
+    Id String
+    CreatorId string
+    CreatedAt Timestamp
+    UpdatedAt Timestamp
+    Name string
+    Participants []UserId
+}
+
+record message {
+    Id string         // pkey for getting message details
+    SenderId UserId
+    SentAt Timestamp  // Secondary Index to sort by
+    GroupId string    // GSI ShardKey Key
+    Content Text // could be others for rich text
+}

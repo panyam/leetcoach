@@ -1,0 +1,23 @@
+```
+record URL {
+  Id string `primaryKey, unique`
+  LongUrl string    
+  CreatedBy string
+  CreatedAt TimeStmp
+  ExpiresAt TimeStamp
+}
+```
+
+```
+service Bitly {
+  CreateShortUrl(longUrl string, expiresAt Optional[TimeStamp], alias Optional[string]) (output URL) {
+    method: POST
+    url: "/urls"
+  }
+  RedirectUrl(shortUrl string) (shortUrl URL) { 
+    method: GET
+    // Note /shortUrl is simpler/better than /urls/.... as it mke
+    url: "/{shortUrl}
+  }
+}
+```

@@ -1,0 +1,28 @@
+### [Functional Requirements](https://www.hellointerview.com/learn/system-design/in-a-hurry/delivery#1-functional-requirements-1)
+
+**Core Requirements**
+
+1. Users should be able to set, get, and delete key-value pairs.
+2. Users should be able to configure the expiration time for key-value pairs.
+3. Data should be evicted according to Least Recently Used (LRU) policy.
+
+**Below the line (out of scope)**
+
+* Users should be able to configure the cache size.
+
+### [Non-Functional Requirements](https://www.hellointerview.com/learn/system-design/in-a-hurry/delivery#2-non-functional-requirements-1)
+
+At this point in the interview, you should ask the interviewer what sort of scale we are expecting. This will have a big impact on your design, starting with how you define the non-functional requirements.
+If I were your interviewer, I would say we need to store up to 1TB of data and expect to handle a peak of up to 100k requests per second.
+**Core Requirements**
+
+1. The system should be highly available. Eventual consistency is acceptable.
+2. The system should support low latency operations (< 10ms for get and set requests).
+3. The system should be scalable to support the expected 1TB of data and 100k requests per second.
+
+**Extensions (out of scope)**
+
+* Durability (data persistence across restarts)
+* Strong consistency guarantees
+* Complex querying capabilities
+* Transaction support

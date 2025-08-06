@@ -1,0 +1,13 @@
+The functional requirements are:
+
+1. View list of problems
+2. View problem details
+3. Submit solution for a problem and get feedback
+4. Participate in competitions
+5. Leaderboard for competitions
+
+Scale Requirements:
+
+* 30M MAU - \~ 1M DAU
+* Each user say performs 100 submissions a day - 100M submissions a day
+* May be 1 competition a day?

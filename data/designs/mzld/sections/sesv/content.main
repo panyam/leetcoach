@@ -1,0 +1,34 @@
+### Functional Requirements
+
+* **List and browse items** (UGC or dev-created assets like skins, tools, etc.)
+* **Search and filter** by category, price, popularity, recency
+* **Purchase items** using virtual currency (e.g., Robux)
+* **Transaction history** for buyers and sellers
+* **Creator earnings tracking**
+* **Inventory management**: items owned by users
+
+### Non-Functional Requirements
+
+* **High availability** (esp. during events or promotions)
+* **Low latency** for reads (browsing, listing)
+* **Eventual consistency** acceptable for inventory updates
+* **Strong consistency** for purchases and wallet updates
+* **Scalability** to millions of concurrent users and items
+* **Auditability** for fraud detection, rollback
+* **Security**: prevent spoofing, tampering, double-spending
+
+### Out-of-Scope
+
+* Live auctions / bidding
+* Real-money purchases / fiat-to-virtual exchange
+* Social features (e.g., gifting, trading)
+* Advanced recommendations
+* Creator onboarding flows
+
+### Numbers
+
+* 100M DAU
+* 1B in yearly revenue
+* Assume 1$ per trasnaction - so ~ 1B transactions a year - 10x = 10B
+* About 250 Transactions per second
+* Number of unique items in the marketplace - about 30M

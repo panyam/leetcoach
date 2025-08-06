@@ -1,0 +1,21 @@
+#### Functional requirements
+
+* Users can CRUD Groups/Chats
+* 100 users per chat
+* A user sends a message every 10 seconds
+* CRUD on messages - Pagination
+* Streaming messages
+
+#### Non functional requirements
+
+* Message creation SLO - 100ms
+* (Paginated) List Messages SLO - 250ms
+* Freshness - 500ms
+* Scalable, Available, Eventually Consistent
+* Global Usage
+
+
+#### Out of Scope
+
+* Typing indicator?
+* Compliance, Filtering etc

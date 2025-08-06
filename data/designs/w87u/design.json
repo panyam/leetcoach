@@ -1,0 +1,23 @@
+{
+  "createdAt": "2025-05-12T15:16:54.357474-07:00",
+  "updatedAt": "2025-05-12T20:47:03.459199-07:00",
+  "version": 0,
+  "id": "w87u",
+  "ownerId": "test1",
+  "visibility": "private",
+  "visibleTo": null,
+  "name": "Design a Key Value Store",
+  "description": "",
+  "sectionIds": [
+    "7es0",
+    "j94u",
+    "xi49",
+    "c5s6",
+    "svix",
+    "hv8y",
+    "zijs"
+  ],
+  "contentMetadata": {
+    "Properties": null
+  }
+}

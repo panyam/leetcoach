@@ -1,0 +1,23 @@
+{
+  "createdAt": "2025-06-04T09:04:49.414795-07:00",
+  "updatedAt": "2025-06-04T10:49:30.245306-07:00",
+  "version": 0,
+  "id": "mzld",
+  "ownerId": "test1",
+  "visibility": "private",
+  "visibleTo": null,
+  "name": "[ROBLOX] In Game Marketplace",
+  "description": "",
+  "sectionIds": [
+    "sesv",
+    "gnwv",
+    "sxfj",
+    "oh0l",
+    "1ud4",
+    "62vy",
+    "rrki"
+  ],
+  "contentMetadata": {
+    "Properties": null
+  }
+}

@@ -1,0 +1,13 @@
+* Isolation of code (just mention)
+    * File system - readonly
+    * CPU/Memory bounds per problem etc
+    * Timeouts
+    * Limited network access
+    * No system calls
+* Availability - Very important - if users cannot view problems or problem details it is a problem.
+* Consistency - Eventual consistency on score board - but as high freshness as possible.
+* Submissions and execution results within 5s
+* Freshness - how fresh is the data user is seeing (ie if user is seeing prices from a 3P system, what SLO do we want on the freshness - would affect their purchase decisions)
+* Scalable:
+    * Competitions with 100k users participating/observing leaderboards
+    * 100M submisisons a day to run within 5 seconds

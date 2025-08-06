@@ -1,0 +1,23 @@
+### Functional Requirements
+
+The functional requirements are:
+
+1.  Users should be able to submit a long URL and receive a shortened version
+2.  Users can optionally provide a custom alias and/or expiration for the shortened URL
+3.  Users should be able to access the original URL by using the shortened URL
+
+Scale Requirements:
+
+* 1B shortened URLs and 100M DAU
+
+### Non functional requirements
+
+* Ensure short URLs are unique
+* Low latency redirection (< 100ms)
+* Availability is more important than consistency (4 9s availability)
+* Scalable to 1B URLs and 100M DAU
+
+### Extensions (Out of scope)
+
+* Analytics - counts by X
+* Authentication/User management

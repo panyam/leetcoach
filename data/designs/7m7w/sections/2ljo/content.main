@@ -1,0 +1,40 @@
+
+<br>
+```
+record Message {
+  union {
+    Inserted,
+    Deleted,
+    Updated,
+    CursorUpdated,
+  }
+}
+
+record Cursor {
+  docId string
+  userId string
+  position int
+}
+
+record Editor {
+  cursor Cursor
+}
+
+record Document {
+  id string
+  creatorId string
+  createdAt Timestamp
+  updatedAt Timestamp
+  
+  // history, permissions, other info
+  Metadata any
+  
+  // Where the actual document content is stored
+  blobId string
+}
+
+record DocumentBlob {
+  id string
+  data []byte
+}
+```

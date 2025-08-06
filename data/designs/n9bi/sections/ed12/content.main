@@ -1,0 +1,20 @@
+Functional:
+
+1. No creations/deletions of problems (admin)
+2. Compliance/CSAM/Audit checks for solutions or contents
+3. Analytics - For the entities a user creates what kind of analytics can be done. Typical are - top N kind of problems.
+4. Authentication/Access Control - user management
+5. Language agnostic for now - though our solution is extensible to various language runtimes/worker types
+6. User profiles
+7. Commenting/Discussion boards, social features etc
+8. Lookup by slug ID
+
+Non Functional:
+
+1. Observability - So we can ensure reliability, uptime, attacks etc
+2. Disaster recovery - comes under reliabiliability and is a great way to go into which parts are “effectful” and which arent.
+3. CI/CD, Deployability, Experimentation
+
+Both:
+
+1. Tiered SLOs (usage/pricing/billing etc)

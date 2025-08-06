@@ -35,8 +35,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file", envfile, err)
 	}
-
 	flag.Parse()
+
 	app := App{Ctx: context.Background()}
 	app.AddServer(&svc.Server{Address: *svc_addr})
 	app.AddServer(&web.Server{GrpcAddress: *svc_addr, Address: *gw_addr})

@@ -1,0 +1,61 @@
+```
+record User {
+  id string
+}
+
+record Competition {
+  compId string
+}
+
+record Participant {
+  // shard key (if need to shard by this - though given 1 competiton per day - not *that*
+  // may competitions around.
+  compId string   
+  
+  // unique - userId + compId (can also be pkey if needed)
+  userId string   
+  
+  // rank of user in the competition 
+  // assume this is either computed when stats like number problems solved,
+  // or submissions are scored and times etc
+  rank int
+  
+  // Some materialized details about the submission (for V2)
+  totalSubmissions int
+  successfulSubmissions int
+  // sum of all start to end times across all problems
+  totalTime int             
+  // can keep submission IDs for quick eval of things
+  submissionIds []string  
+}
+
+record Problem {
+  id string
+  title string
+  description string
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  
+  // others
+  // code stubs for various languages
+  // test cases - inputs and expected results - may be private/public etc
+  // tags []string
+  // difficulty int
+}
+
+recored Submission {
+  id string
+  problemId string
+  userId string
+  compId string   // if the submission was part of a competition
+  results URL   // pointer to results - can be in a blob
+  success bool  // pass or fail - can be more detailed on a per case level etc -
+                // but keep it simple for now
+  submittedAt Timestamp
+  details any   // things like memory, runtime etc
+}
+
+record LeaderBoard {
+  compId string
+  rankedUsers []UserId
+}

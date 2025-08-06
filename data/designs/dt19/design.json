@@ -1,0 +1,17 @@
+{
+  "createdAt": "2025-05-12T22:26:19.132765-07:00",
+  "updatedAt": "2025-05-12T22:29:21.031555-07:00",
+  "version": 0,
+  "id": "dt19",
+  "ownerId": "test1",
+  "visibility": "private",
+  "visibleTo": null,
+  "name": "Ticketmaster",
+  "description": "",
+  "sectionIds": [
+    "jac6"
+  ],
+  "contentMetadata": {
+    "Properties": null
+  }
+}

@@ -1,0 +1,18 @@
+* How should inventory vs items be tracked?
+
+### Option 1 - Itemid is the "class"
+
+* ie it is the actual design and has a max quanitty and num sold attributes
+* Seller (or Purchases/Refunds) can change the former and latter attributes respectively (transactions aside).
+* Inventory table keeps track of user's "instance" anyway along with Txn ID (and price paid if different from listing price)
+* Concurrency concerns
+
+### Option2 - Each ItemId is a unique SKU
+
+* Instead of maintaining a quantity field - just create X instances of the item.
+* Downside is huge write traffic on each item creation.
+* For UGC sites this could be expensive as with users
+* Given 30M unique items - even with 1000 per item - would need 30B instances
+
+So Pick option 1 for now and have an upgrade path to Option2 later (for uniqueness and trading)
+Given UGC model - it is simpler (many users buying same limited/standard item)

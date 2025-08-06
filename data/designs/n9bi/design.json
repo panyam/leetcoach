@@ -1,0 +1,22 @@
+{
+  "createdAt": "2025-05-12T23:08:15.563365-07:00",
+  "updatedAt": "2025-05-12T23:14:33.919775-07:00",
+  "version": 0,
+  "id": "n9bi",
+  "ownerId": "test1",
+  "visibility": "private",
+  "visibleTo": null,
+  "name": "Leetcode",
+  "description": "",
+  "sectionIds": [
+    "zces",
+    "g3we",
+    "ed12",
+    "wcm6",
+    "gsp8",
+    "72pu"
+  ],
+  "contentMetadata": {
+    "Properties": null
+  }
+}

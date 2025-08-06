@@ -1,0 +1,18 @@
+* Availability - Describe why availability is important - eg if user cannot access site they cannot warn dangers
+    * Be ready to calculate error rates
+* Consistency - eg if user bought something they want to see it in their orders otherwise it is problematic
+* Freshness - how fresh is the data user is seeing (ie if user is seeing prices from a 3P system, what SLO do we want on the freshness - would affect their purchase decisions)
+    * For both above freshness SLOs would be key.
+    * Also call out RYW guarantees for user created entities (tweets, posts, trades etc)
+* Scalable - Address scalability for the scale requirement numbers and SLOs on CRUD operations (again why it affects product/platform/user experience goodness)
+* Geo capabilities - Part of scalability is address how users in various regions are affected etc.
+    * Also has impact on freshness/consistency
+
+**WARNINGS:**
+
+* Unless problem statement comes up with some quantitative requirement you have to provide some. This includes SLOs, QPSes, Usage numbers
+
+Consider framing/grouping like below:
+**Latency Targets:** What are your expectations for the response times for price updates and trade creation? How critical is near-real-time performance here?
+**Throughput and Scalability:** With the estimated load, what kind of throughput numbers are you targeting, and how would you design the system to scale effectively?
+**Availability and Fault Tolerance:** What measures would you implement to ensure the system remains highly available and can gracefully handle failures?

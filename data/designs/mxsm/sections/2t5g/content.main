@@ -1,0 +1,22 @@
+```
+// All APIs need authed user
+service GroupService {
+   CRUD on groups
+}
+
+record Paginated<RecordType, TokenType> {
+    Items []RecordType
+    PageToken TokenType
+    Count int
+}
+
+service MessageService {
+    // svc will set CreatedAt, CreatorId and Id after validation             CreateMessage(message Message) Message { 
+        POST /messages
+        BODY: {message}
+    }
+    
+    ListMessages(groupId string, startTime Timestamp, count int) Paginated<Messages, Timestamp> {
+        GET /groups/{groupId}/messages?startTime={startTime}&count={count}
+    }
+}

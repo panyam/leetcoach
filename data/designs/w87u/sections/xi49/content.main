@@ -1,0 +1,13 @@
+```
+class Cache:
+    # Store in memory
+    items = {}
+
+    Get(self, key):
+        return self.items[key]
+
+    Set(self, key, value):
+        self.items[key] = value
+
+    Delete(self, key):
+        delete self.items[key]

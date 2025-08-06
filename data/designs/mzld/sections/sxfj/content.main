@@ -1,0 +1,40 @@
+```
+record User {
+   Id string
+   Name string
+   Inventory []Item
+   WalletBalance Float
+}
+
+record Item {
+    Id string
+    CreatorId string
+    CreatedAt Timestamp
+    IsActive boolean
+    Price Float
+    Category string
+    Tags []string
+    Version string
+    MaxQuantity int
+    NumSold int
+}
+
+record Listing {
+    Id string
+    ItemId string
+    SellerId string
+    Price Float
+    Status Enum {Active, Sold, Expired}
+    Version string
+}
+
+record Transaction {
+    Id string
+    BuyerId string
+    SellerId string
+    ItemId string
+    Price Float
+    Time Timestamp
+    Status Enum { ?? }
+    Version string
+}

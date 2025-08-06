@@ -1,0 +1,14 @@
+* Limiting Shard Sizes is to only handle writes will be very wasteful - eg you will need disks that are 100s of MB - a huge waste.
+* Read-Heavy patterns with caching or replication strategies
+    * In-Mem caching - great for offloading read heavy accesses so as soon as you insert into a shard
+        * Tradeoff - must ensure consistency (ie what a user created must show up in the cache as soon as it is inserted in the DB (or read-ahead cache pulls it from DB - may deal with thundering herd).
+    * Replicas: Master-Slave for consistency - but may have replication lag. For RYW consistency must always read from master or resort to synchronous replication. (or before) write to the cache too.
+    * Same issues on multi-region - just bigger numbers and chance of failures.
+* Tiered Storage for Managing Memory
+    * Keep recent data only (say enough to fill first N pages of ListX apis) - eg past 30 days of trades and use secondary storage/tier for older data. May be good for most use cases
+* Consider shard manager to dynamically handle âhotâ entities - especially to ensure hot entities are not on the same tenant.
+* Data Archival
+    * Need a way to ARCHIVE âolderâ data - say older than a year out into cold(er) storage so primary DB is bounded. Even better if this is bundled as a product feature itself.
+    * Similiarly we could archive least-active users.
+* DR of databases to ensure data survival.
+* Geographic replication - great for low writes needing high consistency. If high writes with high durability then we may need to write to kafka locally and replicate cross geo.

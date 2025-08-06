@@ -1,0 +1,24 @@
+"Now I will walk through the APIs/Endpoints needed Next is the actual API to address the functional requirements - rememeber dont be fancy. Most things here can be CRUD/Restful. A good choice to avoid http brain-f@#k is to write as service descriptions along with rest bindings (very similar to grpc defs):
+
+```
+service Bitly {
+  CreateShortUrl(longUrl string, expiresAt Optional[TimeStamp], alias Optional[string]) (output URL) {
+    method: POST
+    url: "/urls"
+  }
+  RedirectUrl(shortUrl string) (shortUrl URL) { 
+    method: GET
+    // Note /shortUrl is simpler/better than /urls/.... as it mke
+    url: "/{shortUrl}
+  }
+}
+
+```
+
+* One diff from GRPC is - instead of having a single “req” object and a single “response” object just make them look like function decls.
+* Problem with GRPC style declarations is you have an explosion of Req/Resp objects and wastes time. We can just say this is GPRC “like”.
+* The advantage of this is that we are showing what we are intending and with bindings it is clear as well.
+* Try to make it RESTful - so services are still operating on entities with CRUD operations.
+* **Think of principles from AIP.dev - conventions like batch gets, operations, long running operations can be used if necessary.**.
+
+Now id like to move on to the HLD that will addresses how these APIs will work along with details on correctness, freshness etc. This will be starting point to address bottlenecks to scale etc.

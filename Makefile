@@ -2,7 +2,6 @@
 NUM_LINKED_GOMODS=`cat go.mod | grep -v "^\/\/" | grep replace | wc -l | sed -e "s/ *//g"`
 
 
-
 run: build
 	cp .env /tmp 
 	cp .env.dev /tmp

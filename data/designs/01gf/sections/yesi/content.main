@@ -1,0 +1,19 @@
+At this point you may be asked for how about "X" - eg authentication, compliance, logging etc. This is risky at senior levels as you are giving control back to the interviewer.
+To circumvent that we can call out some out-of-scope things/extensions (eg we want to mention for showing our expertise on what a real world "production" service looks like). Eg with something like:
+"Before I go into NFR I want to call out some extensions that I would prefer not being in scope:"
+
+Functional:
+
+1. Auditability/Compliance - especially for user generated entities (trades - are they legal, posts - CSAM?, blogs - copyright etc)
+2. Analytics - For the entities a user creates what kind of analytics can be done. Typical are - top N kind of problems.
+3. Authentication/Access Control - user management
+
+Non Functional:
+
+1. Observability - So we can ensure reliability, uptime, attacks etc
+2. Disaster recovery - comes under reliabiliability and is a great way to go into which parts are Ã¢ÂÂeffectfulÃ¢ÂÂ and which arent.
+3. CI/CD, Deployability, Experimentation
+
+Both:
+
+1. Tiered SLOs (usage/pricing/billing etc)

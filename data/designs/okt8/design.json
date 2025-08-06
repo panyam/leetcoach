@@ -1,0 +1,25 @@
+{
+  "createdAt": "2025-05-08T10:22:13.986446-07:00",
+  "updatedAt": "2025-05-12T10:54:46.755743-07:00",
+  "version": 0,
+  "id": "okt8",
+  "ownerId": "test1",
+  "visibility": "private",
+  "visibleTo": null,
+  "name": "Design Bitly",
+  "description": "",
+  "sectionIds": [
+    "mvwd",
+    "kh81",
+    "e5el",
+    "gk2k",
+    "g37g",
+    "7gfp",
+    "8tae",
+    "cyx4",
+    "b10t"
+  ],
+  "contentMetadata": {
+    "Properties": null
+  }
+}

@@ -1,0 +1,43 @@
+```
+
+record Paginated<X> {
+   Items []X
+   Count int
+   NextPageToken int_or_page_token  // 
+}
+
+// Services assume auth
+
+service UserService {
+    GetInventory(userId string) Paginated<Item> {
+        GET /users/{userId}/items
+    }
+    
+    GetTransactions(userId string) Paginated<Transaction> {
+        GET /users/{userId}/transactions
+    }
+}
+
+service ItemService {
+    GetItemDetails(itemid string) Item {
+        GET /items/{itemid}
+    }
+    
+    ListItems(category: string?, sort: string) Paginated<Item> {
+        GET /items?category={category}&sort={sort}
+    }
+    
+    // Seller interface for updating item statuses etc
+    // eg listing/delisting
+    UpdateItem(patch: Patch<Item>) Item { // returns updated item
+        PATCH /items/{itemid}
+        BODY: {patch}
+    }
+    
+    // debits user wallet, updates inventory ie numsold
+    PurchaseItem(itemId, userId string) {
+        POST /items/{itemId}
+        BODY: {price if diff, etc)
+    }
+}
+
